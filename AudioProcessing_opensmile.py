@@ -47,7 +47,7 @@ for subject in subject_list:
     if not any(fname.endswith('.mp4') for fname in os.listdir(os.path.join(path, subject))):
         print("No audio file exists for subject:" + subject)
     else:
-        features = smile.process_file('../Interviews/Test_FreeSpeech_JamesSimon_16_01_2024/Audio_Participant_16012024.mp4')
+        features = smile.process_file(os.path.join(path, subject))
         averageFeatures = features.mean()
         writer.writerow(averageFeatures)
 
