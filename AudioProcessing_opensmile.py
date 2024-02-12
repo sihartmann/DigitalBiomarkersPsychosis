@@ -11,12 +11,47 @@ Created on Mon Feb 12 11:16:50 2024
 """
 
 import opensmile
+import csv
+import os
 
+# Define openSMILE extractor, here eGeMAPS v02, set as low level descriptors
+# to get features for every 100 milliseconds
 smile = opensmile.Smile(
     feature_set=opensmile.FeatureSet.eGeMAPSv02,
     feature_level=opensmile.FeatureLevel.LowLevelDescriptors,
 )
 
-smile.feature_names
+# Print all features
+features = smile.feature_names
 
-y = smile.process_file('../Interviews/Test_FreeSpeech_JamesSimon_16_01_2024/Audio_Participant_16012024.mp4')
+# Set path with folders of all subjects
+path = '../Interviews'
+
+if os.path.isdir(path):
+    subject_list = next(os.walk(path))[1]
+else:
+    print('Path does not exist!')
+      
+# Create csv file where acoustic features will be stored
+f = open('../Interviews/AudioFeatures_Output.csv', 'w')
+
+# create the csv writer
+writer = csv.writer(f)
+# Gives the header name row into csv
+writer.writerow([feature for feature in features])
+
+# Loop through all subjects, check if audio file exists, extract acoustic
+# features and write them to a csv file
+for subject in subject_list:
+    # Check if folder contains audio file 
+    if not any(fname.endswith('.mp4') for fname in os.listdir(os.path.join(path, subject))):
+        print("No audio file exists for subject:" + subject)
+    else:
+        features = smile.process_file('../Interviews/Test_FreeSpeech_JamesSimon_16_01_2024/Audio_Participant_16012024.mp4')
+        averageFeatures = features.mean()
+        writer.writerow(averageFeatures)
+
+# Close csv file        
+f.close()        
+        
+        
