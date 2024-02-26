@@ -37,7 +37,7 @@ f = open('../Interviews/AudioFeatures_Output.csv', 'w')
 
 # create the csv writer
 writer = csv.writer(f)
-# Gives the header name row into csv
+# Add the header name row into csv
 writer.writerow([feature for feature in features])
 
 # Loop through all subjects, check if audio file exists, extract acoustic
