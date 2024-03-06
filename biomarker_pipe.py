@@ -91,20 +91,25 @@ class pipe:
 			
 	def clean_audio(self, start_p, start_d, start_t, stop_p, stop_d, stop_t):
 		output_name = self.patient_name + "_cleaned.mp3"
-		command = f'ffmpeg -i "{self.audio}" -af "silenceremove=start_periods=1:start_duration=1:start_threshold=-50dB:stop_periods=-1:stop_duration=5:stop_threshold=-50dB" {output_name}'
+		log_dir = self.patient_dir + "/logs/"
+		try:
+			os.mkdir(log_dir)
+		except OSError:
+			self.logger.warning("The log directory already exists.")
+		command = f'ffmpeg -i "{self.audio}" -af "silenceremove=start_periods=1:start_duration=1:start_threshold=-50dB:stop_periods=-1:stop_duration=5:stop_threshold=-50dB" {output_name} > {log_dir}{self.patient_name}_ffmpeg.log 2>&1'
+		#command = ["ffmpeg", "-i", self.audio, "-af", "silenceremove=start_periods=1:start_duration=1:start_threshold=-50dB:stop_periods=-1:stop_duration=5:stop_threshold=-50dB", output_name]
 		self.logger.debug("\tRunning ffmpeg on patient file using {}.".format(command))
-		log_dir = os.path.join(self.patient_dir, "logs")
-		os.makedirs(log_dir, exist_ok=True)
-		log_file = os.path.join(log_dir, self.patient_name + "_ffmpeg.log")
-		process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-		for line in process.stdout:
-			print(line.strip())
-			with open(log_file, "a") as f:
-				f.write(line)
-		exit_code = process.wait()
-		if exit_code != 0:
-			self.logger.error(f'\tffmpeg returned exit code {exit_code}. See log file for detailed error message.')
+		log_file = self.patient_name + "_ffmpeg.log"
+		exit_c, output = subprocess.getstatusoutput(command)
+		# with open(log_dir + log_file, "w") as f:
+		# 	f.write(output)
+		# print(output)
+		if exit_c != 0:
+			print("Hello")
+			self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
 			self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [output_name])
+		
+		self.delete_files([output_name])
 
 
 
