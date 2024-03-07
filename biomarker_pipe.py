@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import opensmile
+import whisper
 import csv
 import multiprocessing
 
@@ -22,17 +23,17 @@ class pipe:
 		self.logger = logging.getLogger('DigBio')
 		self.logger.addHandler(stderrhandler)
 		match self.loglevel:
-			case 1:
+			case '1':
 				self.logger.setLevel(logging.ERROR)
-			case 2:
+			case '2':
 				self.logger.setLevel(logging.WARNING)
-			case 3:
+			case '3':
 				self.logger.setLevel(logging.INFO)
-			case 4:
+			case '4':
 				self.logger.setLevel(logging.DEBUG)
 		self.logger.info("\tInitializing DigBio")
 		self.logger.info("\tDigBio version: {0}.".format(VERSION))
-		self.logger.info("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
+		self.logger.debug("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
 
 	def get_patients(self, directory):
 		patients = list()
@@ -45,7 +46,7 @@ class pipe:
 		if exitcode == 1:
 			if files is not None:
 				self.logger.warning(f'\tThe following files may be corrupted and will be deleted: {files}'.format(files))
-			self.delete_files(files)
+				self.delete_files(files)
 			self.logger.error(msg)
 			sys.exit(1)
 		self.logger.info(msg)
@@ -71,14 +72,31 @@ class pipe:
 		averageFeatures = features.mean()
 		writer.writerow(averageFeatures)    
 		f.close()
-		self.logger.debug("\tOpensmile completed successfully.")
-		  
+		self.logger.debug("\tOpensmile has completed successfully.")
+
+	def run_whisper(self, model):
+		if os.path.isfile(f"{self.patient_dir}/{self.output_name}") == False:
+			self.shutdown(1, "Cleaned mp3 files could not be found. Please do not move or delete them.")
+		self.logger.info("Starting whisper.")
+		try:
+			os.mkdir(self.log_dir)
+		except OSError:
+			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+		log_file = self.patient_name + "_whisper.log"
+		command = f'whisper  -o {self.patient_dir}/whisper -f txt --model {model} > {self.log_dir}/{log_file}'
+		self.logger.debug("\tRunning whisper on cleaned patient file using {}.".format(command))
+		exit_c, output = subprocess.getstatusoutput(command)
+		if exit_c != 0:
+			self.logger.error(f'\twhisper returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+			self.shutdown(1, "\tExecution cancelled due to error in whisper.", [self.output_name])
+			self.logger.info("\twhisper has finished successfully.")
+		else:
+			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
 
 	def run_audio(self):
-		print("I am starting")
 		self.clean_audio(1, 1, -50, -1, 5, -50)
-		print("I am done!")
-		#self.run_opensmile()
+		self.run_opensmile()
+		self.run_whisper("base")
 
 	def delete_files(self, files):
 		for file in files:
@@ -90,26 +108,23 @@ class pipe:
 
 			
 	def clean_audio(self, start_p, start_d, start_t, stop_p, stop_d, stop_t):
-		output_name = self.patient_name + "_cleaned.mp3"
-		log_dir = self.patient_dir + "/logs/"
-		try:
-			os.mkdir(log_dir)
-		except OSError:
-			self.logger.warning("The log directory already exists.")
-		command = f'ffmpeg -i "{self.audio}" -af "silenceremove=start_periods=1:start_duration=1:start_threshold=-50dB:stop_periods=-1:stop_duration=5:stop_threshold=-50dB" {output_name} > {log_dir}{self.patient_name}_ffmpeg.log 2>&1'
-		#command = ["ffmpeg", "-i", self.audio, "-af", "silenceremove=start_periods=1:start_duration=1:start_threshold=-50dB:stop_periods=-1:stop_duration=5:stop_threshold=-50dB", output_name]
-		self.logger.debug("\tRunning ffmpeg on patient file using {}.".format(command))
+		self.output_name = self.patient_name + "_cleaned"
+		self.log_dir = self.patient_dir + "/logs"
 		log_file = self.patient_name + "_ffmpeg.log"
-		exit_c, output = subprocess.getstatusoutput(command)
-		# with open(log_dir + log_file, "w") as f:
-		# 	f.write(output)
-		# print(output)
-		if exit_c != 0:
-			print("Hello")
-			self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-			self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [output_name])
-		
-		self.delete_files([output_name])
+		try:
+			os.mkdir(self.log_dir)
+		except OSError:
+			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+		if os.path.isfile(f"{self.patient_dir}/{self.output_name}.mp3") == False:
+			command = f'ffmpeg -i "{self.audio}" -af "silenceremove=start_periods=1:start_duration=1:start_threshold=-50dB:stop_periods=-1:stop_duration=5:stop_threshold=-50dB" {self.patient_dir}/{self.output_name}.mp3 > {self.log_dir}/{log_file} 2>&1 < /dev/null'
+			self.logger.debug("\tRunning ffmpeg on patient file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [self.output_name + ".mp3"])
+			self.logger.info("\tffmpeg has finished successfully.")
+		else:
+			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
 
 
 
@@ -119,9 +134,6 @@ class pipe:
 			self.run_audio()
 		if self.run_mode != "audio":
 			self.run_video()
-	
-	def init_pipe(self):
-		pass
 
 class pipeParser:
 	def parse_args(self, args):
@@ -138,7 +150,7 @@ class pipeParser:
 					ct = 0
 					for root, dirs, files in os.walk(interviews_path):
 						for file in files:
-							if file.endswith('.mp3'):
+							if file.endswith('.mp3') and not file.endswith('cleaned.mp3'):
 								ct += 1
 								all_args.append([os.path.join(root, file), log_level, run_mode])
 					return ct, all_args
