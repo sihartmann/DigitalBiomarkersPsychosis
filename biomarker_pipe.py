@@ -75,7 +75,7 @@ class pipe:
 		self.logger.debug("\tOpensmile has completed successfully.")
 
 	def run_whisper(self, model):
-		if os.path.isfile(f"{self.patient_dir}/{self.output_name}") == False:
+		if os.path.isfile(f"{self.patient_dir}/{self.output_name}.mp3") == False:
 			self.shutdown(1, "Cleaned mp3 files could not be found. Please do not move or delete them.")
 		self.logger.info("Starting whisper.")
 		try:
@@ -83,19 +83,17 @@ class pipe:
 		except OSError:
 			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
 		log_file = self.patient_name + "_whisper.log"
-		command = f'whisper  -o {self.patient_dir}/whisper -f txt --model {model} > {self.log_dir}/{log_file}'
+		command = f'whisper  -o {self.patient_dir}/whisper -f txt --model {model} {self.patient_dir}/{self.output_name}.mp3 > {self.log_dir}/{log_file}'
 		self.logger.debug("\tRunning whisper on cleaned patient file using {}.".format(command))
 		exit_c, output = subprocess.getstatusoutput(command)
 		if exit_c != 0:
 			self.logger.error(f'\twhisper returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
 			self.shutdown(1, "\tExecution cancelled due to error in whisper.", [self.output_name])
-			self.logger.info("\twhisper has finished successfully.")
-		else:
-			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
+		self.logger.info("\twhisper has finished successfully.")
 
 	def run_audio(self):
 		self.clean_audio(1, 1, -50, -1, 5, -50)
-		self.run_opensmile()
+		#self.run_opensmile()
 		self.run_whisper("base")
 
 	def delete_files(self, files):
