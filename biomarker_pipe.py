@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 import opensmile
-import whisper
 import csv
 import multiprocessing
 
@@ -17,8 +16,8 @@ class pipe:
 		self.patient_name = os.path.splitext(os.path.basename(self.audio))[0]
 		self.loglevel = args[1]
 		self.run_mode = args[2]
-		stderrhandler = logging.StreamHandler()  # Create stderrhandler before using it
-		stderrhandler.setLevel(int(self.loglevel))  # Set the log level for stderrhandler
+		stderrhandler = logging.StreamHandler()
+		stderrhandler.setLevel(int(self.loglevel))
 		stderrhandler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
 		self.logger = logging.getLogger('DigBio')
 		self.logger.addHandler(stderrhandler)
@@ -65,7 +64,7 @@ class pipe:
     	feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 		)
 		features = smile.feature_names
-		f = open('audio_features_summary.csv', 'w')
+		f = open(self.patient_dir + "/" + self.patient_name + "_whisper.csv", 'w')
 		writer = csv.writer(f)
 		writer.writerow([feature for feature in features])
 		features = smile.process_file(self.audio)
@@ -83,7 +82,7 @@ class pipe:
 		except OSError:
 			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
 		log_file = self.patient_name + "_whisper.log"
-		command = f'whisper  -o {self.patient_dir}/whisper -f txt --model {model} {self.patient_dir}/{self.output_name}.mp3 > {self.log_dir}/{log_file}'
+		command = f'whisper  -o {self.patient_dir} -f txt --model {model} {self.patient_dir}/{self.output_name}.mp3 > {self.log_dir}/{log_file} && mv {self.patient_dir}/{self.output_name}.txt  {self.patient_dir}/{self.output_name}_whisper.txt'
 		self.logger.debug("\tRunning whisper on cleaned patient file using {}.".format(command))
 		exit_c, output = subprocess.getstatusoutput(command)
 		if exit_c != 0:
@@ -93,7 +92,7 @@ class pipe:
 
 	def run_audio(self):
 		self.clean_audio(1, 1, -50, -1, 5, -50)
-		#self.run_opensmile()
+		self.run_opensmile()
 		self.run_whisper("base")
 
 	def delete_files(self, files):
