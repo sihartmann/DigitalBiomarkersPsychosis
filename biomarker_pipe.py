@@ -11,6 +11,12 @@ import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from gensim import corpora, models
+from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.tag import pos_tag
+from nltk.chunk import ne_chunk
+from nltk.corpus import wordnet as wn
+from gensim import corpora, models
+from nltk.stem import WordNetLemmatizer
 import contractions
 import string
 
@@ -80,7 +86,7 @@ class pipe:
     	feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 		)
 		features = smile.feature_names
-		f = open(self.patient_dir + "/" + self.patient_name + "_whisper.csv", 'w')
+		f = open(self.patient_dir + "/" + self.patient_name + "_opensmile.csv", 'w')
 		writer = csv.writer(f)
 		writer.writerow([feature for feature in features])
 		features = smile.process_file(self.audio)
@@ -133,44 +139,71 @@ class pipe:
 				print(f"Error deleting {file}: {e}")
 
 
+
 	def run_nltk(self, output_file):
+		# Open output file
 		file = self.transcript
 		with open(file, 'r') as f:
 			all_text = f.read()
 
-		sentences = nltk.sent_tokenize(all_text)
-		fixed_sentences = [contractions.fix(sentence) for sentence in sentences]
-		all_text_fixed = ' '.join(fixed_sentences)
-		tokens = nltk.word_tokenize(all_text_fixed)
-		table = str.maketrans('', '', string.punctuation)
-		tokens = [word.translate(table).lower() for word in tokens if word.translate(table)]
-		lemmatizer = nltk.stem.WordNetLemmatizer()
-		lemmatized_tokens = [lemmatizer.lemmatize(word) for word in tokens]
+		# Fragment into sentences
+		sentences = sent_tokenize(all_text)
 
-		pos_tags = nltk.pos_tag(lemmatized_tokens)
-		ner_tags = nltk.ne_chunk(pos_tags)
+		# Do sentiment scores per sentence (per word also possible but didn't seem that useful tbh)
 		sia = SentimentIntensityAnalyzer()
-		sentiment_scores = [sia.polarity_scores(sentence) for sentence in lemmatized_tokens]
-		dictionary = corpora.Dictionary([lemmatized_tokens])
-		corpus = [dictionary.doc2bow(lemmatized_tokens)]
-		lda_model = models.LdaModel(corpus, num_topics=5, id2word=dictionary, passes=10)
+		sentiment_scores = [sia.polarity_scores(sentence) for sentence in sentences]
+
+		# Get rid of contractions like I'm, it's, can't ...
+		fixed_sentences = [contractions.fix(sentence) for sentence in sentences]
+
+		# Lemmatize words to their stem.
+		lemmatizer = WordNetLemmatizer()
+		lemm_sentences = []
+		for sentence in fixed_sentences:
+			words = word_tokenize(sentence)
+			words = [word.lower() for word in words if word not in string.punctuation] # Make lowercase, remove punctuation
+			lemmatized_words = [lemmatizer.lemmatize(word) for word in words] # Lemmatize
+			lemm_sentences.append(lemmatized_words)
+		print(lemm_sentences)
+
+		# Flatten the list of lists
+		flat_tokens = [word for sentence in lemm_sentences for word in sentence]
+
+		# Tokenize by word
+		tokens = word_tokenize(' '.join(flat_tokens))
+
+		pos_tags = pos_tag(tokens)
+
+		dictionary = corpora.Dictionary(lemm_sentences)
+		corpus = [dictionary.doc2bow(doc) for doc in lemm_sentences]
+		lda_model = models.LdaModel(corpus, num_topics=10, id2word=dictionary, passes=10)
 		topic_modeling_results = lda_model.print_topics()
-		stop_words = set(stopwords.words('english'))
-		filtered_text = [word for word in lemmatized_tokens if word.lower() not in stop_words]
-		pos_tags = nltk.pos_tag(filtered_text)
-		ner_tags = nltk.ne_chunk(pos_tags)
-		sia = SentimentIntensityAnalyzer()
-		sentiment_scores = [sia.polarity_scores(sentence) for sentence in filtered_text]
-		dictionary = corpora.Dictionary([filtered_text])
-		corpus = [dictionary.doc2bow(filtered_text)]
-		lda_model = models.LdaModel(corpus, num_topics=5, id2word=dictionary, passes=10)
-		topic_modeling_results = lda_model.print_topics()
+
+		avg_sentence_length = sum(len(sent.split()) for sent in fixed_sentences) / len(fixed_sentences)
+		
+		verb_count = 0
+		noun_count = 0
+		adj_count = 0
+		for word, pos in pos_tags:
+			if pos.startswith('V'):
+				#print(word, "is a verb\n")
+				verb_count += 1
+			elif pos.startswith('N'):
+				#print(word, "is a noun\n")
+				noun_count += 1
+			elif pos.startswith('J'):
+				#print(word, "is an adjective\n")
+				adj_count += 1
 
 		with open(output_file, 'w') as f:
-			f.write("POS Tags: {}\n".format(pos_tags))
-			f.write("NER Tags: {}\n".format(ner_tags))
+			f.write("Average Sentence Length: {}\n".format(avg_sentence_length))
+			f.write("Number of Verbs: {}\n".format(verb_count))
+			f.write("Number of Nouns: {}\n".format(noun_count))
+			f.write("Number of Adjectives: {}\n".format(adj_count))
 			f.write("Sentiment Scores: {}\n".format(sentiment_scores))
 			f.write("Topic Modeling Results: {}\n".format(topic_modeling_results))
+
+
 
 	def clean_audio(self, start_p, start_d, start_t, stop_p, stop_d, stop_t):
 		self.output_name = self.patient_name + "_cleaned"
@@ -190,8 +223,6 @@ class pipe:
 			self.logger.info("\tffmpeg has finished successfully.")
 		else:
 			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
-
-
 
 	def run_pipe(self):
 		self.check_filepaths()
@@ -256,8 +287,6 @@ def clear_data(path):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
- 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--file", "-f", help = "The name of your file containing the arguments you want to use.")
@@ -274,5 +303,8 @@ if __name__ == '__main__':
 	for process in processes:
 		process.join()
 	
-	
-	
+# flowchart
+# pyinstaller?
+# LSA / word2vec
+# sentence length, num of nouns/verbs/ADJ
+
