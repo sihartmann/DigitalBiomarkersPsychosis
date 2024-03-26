@@ -56,6 +56,10 @@ class pipe:
 		self.logger.info("\tDigBio version: {0}.".format(VERSION))
 		self.logger.debug("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
 		self.ffmpeg_path = r"C:\Users\a1863615\Downloads\ffmpeg-2024-03-11-git-3d1860ec8d-full_build\bin\ffmpeg.exe"
+		self.whisper_path = r"C:\Users\a1863615\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts\whisper.exe"
+		feat_detect = r'.\C:\Users\a1863615\Downloads\OpenFace_2.2.0_win_x64\FeatureExtraction.exe'
+
+
 
 
 	def get_patients(self, directory):
@@ -108,7 +112,6 @@ class pipe:
 			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
 		log_file = self.patient_name + "_whisper.log"
 		self.transcript = f"{self.patient_dir}\\{self.output_name}_whisper.txt"
-		self.whisper_path = r"C:\Users\a1863615\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts\whisper.exe"
 		if os.path.isfile(self.transcript):
 			self.logger.info("Transcript for this patient already exists. Skipping transcription...")
 		else:
@@ -146,8 +149,7 @@ class pipe:
 		log_path = f"{self.log_dir}\\{log_file}"
 		if not os.path.isfile(self.video):
 			self.logger.error("No video file was found.")
-		feat_detect = r'.\C:\Users\a1863615\Downloads\OpenFace_2.2.0_win_x64\FeatureExtraction.exe'
-		command = f'{feat_detect} -f {self.video} --out_dir {self.patient_dir} -verbose > {log_path} 2>&1'
+		command = f'{self.feat_detect} -f {self.video} --out_dir {self.patient_dir} -verbose > {log_path} 2>&1'
 		exit_c, output = subprocess.getstatusoutput(command)
 		if exit_c != 0:
 			self.logger.error(f'\tOpenface returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
