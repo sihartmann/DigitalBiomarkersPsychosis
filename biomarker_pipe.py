@@ -35,7 +35,6 @@ class pipe:
 		self.patient_dir = os.path.dirname(self.audio)
 		match = re.search(r'\d+$', os.path.basename(self.audio[:-4]))
 		self.patient_name = match.group()
-		print(self.patient_name)
 		self.loglevel = args[2]
 		self.run_mode = args[3]
 		self.audio_interviewer = args[4]
@@ -149,7 +148,7 @@ class pipe:
 		self.clean_audio(1, 1, -50, -1, 5, -50)
 		self.run_opensmile() 
 		self.run_whisper("base")
-		self.run_nltk(f'{self.patient_dir}\\{self.patient_name}_nltk_results.txt', f'{self.patient_dir}\\{self.patient_name}_sim_scores.csv')
+		self.run_nltk(f'{self.patient_dir}\\{self.patient_name}_nltk_results.txt', f'{self.patient_dir}\\{self.patient_name}_sim_scores.csv', f'{self.patient_dir}\\{self.patient_name}_nltk_results.csv')
 
 	def run_video(self):
 		self.logger.info('Starting openface.')
@@ -177,19 +176,19 @@ class pipe:
 				os.remove(file)
 				self.logger.debug(f"{file} deleted successfully")
 			except OSError as e:
-				print(f"Error deleting {file}: {e}")
+				self.logger.error(f"Error deleting {file}: {e}")
 
 	def preprocess_text(self, text, nlp):     
 		doc = nlp(text.lower())
 		tokens = [token.lemma_ for token in doc]
 		return ' '.join(tokens)
 	
-	def run_nltk(self, output_file, lsa_output):
+	def run_nltk(self, output_file, lsa_output, csv_output):
 		# Open output file
 		file = self.transcript
 		with open(file, 'r') as f:
 			all_text = f.read()
-
+		self.logger.info("\tStarting semantic analysis.")
 		with open(self.transcript_int, 'r') as f_i:
 			all_int_text = f_i.read()
 		#LSA
@@ -212,9 +211,16 @@ class pipe:
 		int_sentences = nltk.tokenize.sent_tokenize(all_int_text)
 		num_sent = len(sentences)
 		num_int_sent = len(int_sentences)
+		
 		# Do sentiment scores per sentence
 		sia = SentimentIntensityAnalyzer()
 		sentiment_scores = [sia.polarity_scores(sentence) for sentence in sentences]
+		overall_sentiment = {
+		'neg': sum(score['neg'] for score in sentiment_scores) / len(sentiment_scores),
+		'neu': sum(score['neu'] for score in sentiment_scores) / len(sentiment_scores),
+		'pos': sum(score['pos'] for score in sentiment_scores) / len(sentiment_scores),
+		'compound': sum(score['compound'] for score in sentiment_scores) / len(sentiment_scores)}
+		overall_sentiment_list = [val for val in overall_sentiment.values()]
 
 		# Remove punctuation
 		translator = str.maketrans('','', string.punctuation)
@@ -223,16 +229,15 @@ class pipe:
 		# Get rid of contractions like I'm, it's, can't ...
 		words = nltk.tokenize.word_tokenize(fixed_text)
 		expanded_text = [contractions.fix(word) for word in words]
-		# print(expanded_text)
+
 		merged_text = ' '.join(expanded_text)
-		# print(merged_text)
 		# Do POS and dependency tagging.
 		nlp = spacy.load('en_core_web_sm')
 		doc = nlp(merged_text)
 		with open(output_file, 'w') as f:
 			pos_counter = {}
 			dep_counter = {}
-			for token in doc:
+			for i, token in enumerate(doc):
 				f.write(f"Token: {token.text}\tPOS: {token.pos_}\tDep: {token.dep_}\n")
 				pos= token.pos_
 				if pos in pos_counter:
@@ -244,14 +249,37 @@ class pipe:
 					dep_counter[dep] += 1
 				else:
 					dep_counter[dep] = 1
-
-			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
-			f.write("\nAverage Sentence Length: {}\n".format(avg_sentence_length))
-			f.write("\nSentiment Scores: {}\n".format(sentiment_scores))
 			f.write(f"\nPOS counts: {pos_counter}")
 			f.write(f"\nDependency counter: {dep_counter}")
-			f.write(f"\nNumber of patient sentences: {num_sent}")
-			f.write(f"\nNumber of interviewer sentences: {num_int_sent}")
+		with open(csv_output, 'w', newline='') as f:
+			writer = csv.writer(f)
+			POS_tags = ["ADJ", "ADP", "ADV", "AUX", "CONJ", "CCONJ", "DET", "INTJ", "NOUN" , "NUM", "PART", "PROUN", "PROPN", "PUNCT", "SCONJ", "SYM", "X"]
+			DEP_tags = ["ROOT", "acl", "acomp", "advcl", "advmod", "agent", "amod", "appos", "attr",
+			"aux", "auxpass", "case", "cc", "ccomp", "compound", "conj", "cop", "csubj",
+			"csubjpass", "dative", "dep", "det", "dobj", "expl", "intj", "mark", "meta",
+			"neg", "nmod", "npadvmod", "nsubj", "nsubjpass", "nummod", "oprd", "parataxis",
+			"punct", "quantmod", "relcl"]
+
+			POS_val_list = []
+			for key in POS_tags:
+				val = pos_counter.get(key,0)
+				POS_val_list.append(val)
+			
+			DEP_val_list = []
+			for key in DEP_tags:
+				val = dep_counter.get(key,0)
+				DEP_val_list.append(val)
+			
+
+			data = ["avg sentence len", "neg sent", "neu sent", "pos sent", "comp sent", "pat/int"]
+			col_names = data + POS_tags + DEP_tags
+			head = ["patient"] + [col for col in col_names]
+			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
+			writer.writerow(head)
+			body = [self.patient_name, avg_sentence_length] + overall_sentiment_list + [num_sent/(num_sent+num_int_sent)] + POS_val_list + DEP_val_list
+			writer.writerow(body)
+			
+		self.logger.info("\tSemantic analysis completed.")
 
 	def clean_audio(self, start_p, start_d, start_t, stop_p, stop_d, stop_t):
 		self.output_name = self.patient_name + "_cleaned"
@@ -263,8 +291,6 @@ class pipe:
 			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
 		log_path = f"{self.log_dir}\\{log_file}"
 		output_path = f"{self.patient_dir}\\{self.output_name}.mp3"
-		print("Output file will be", output_path)
-		print("Log file will be", log_path)
 		if os.path.isfile(output_path) == False:
 			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration=5" {output_path} > {log_path} 2>&1'
 			self.logger.debug("\tRunning ffmpeg on patient file using {}.".format(command))
@@ -301,18 +327,19 @@ class pipeParser:
 					video = None
 					audio = None
 					int_audio = None
-					for root, dirs, files in os.walk(interviews_path):
-						for file in files:
-							print(file, dirs)
-							if (file.startswith('Audio_Participant')):
-								audio = os.path.join(root,file)
-							elif (file.startswith('Audio_Interviewer')):
-								int_audio = os.path.join(root, file)
-							elif file.startswith('Video'):
-								video = os.path.join(root,file)
+					for patient_dir in os.listdir(interviews_path):
+						patient_dir_path = os.path.join(interviews_path, patient_dir)
+						for f in os.listdir(patient_dir_path):
+							file = os.path.join(patient_dir_path, f)
+							print(file)
+							if (f.startswith('Audio_Participant')):
+								audio = file
+							elif (f.startswith('Audio_Interviewer')):
+								int_audio = file
+							elif f.startswith('Video'):
+								video = file
 						all_args.append([audio, video, log_level, run_mode, int_audio])
-					print(all_args[1:])
-					return len(all_args) - 1, all_args[1:]
+					return len(all_args), all_args
 				else:
 					print(f"Directory path '{interviews_path}' is not valid.")
 			else:
