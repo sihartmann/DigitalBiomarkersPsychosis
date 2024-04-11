@@ -12,6 +12,7 @@ import regex as re
 from nltk.sentiment import SentimentIntensityAnalyzer
 import contractions
 import spacy
+import numpy as np
 import string
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -28,13 +29,34 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 VERSION = '1.0'
 
+# To do:
+# Run ffmpeg silencedetect on interviewer and participant
+# Store beginning and end point in list
+# silence_list_participant
+# silence_list_interviewer
+# Between each time points of silence, fill corresponding column in with 0's
+# Then, fill every still empty slot with 1's
+
+# openface emotion detection
+# python wrapper
+
 class pipe:
 	def parse_args(self, args):
 		self.audio = args[0]
 		self.video = args[1]
-		self.patient_dir = os.path.dirname(self.audio)
-		match = re.search(r'\d+$', os.path.basename(self.audio[:-4]))
-		self.patient_name = match.group()
+		if self.audio is not None:
+			self.participant_dir = os.path.dirname(self.audio)
+		elif self.video is not None:
+			self.participant_dir = os.path.dirname(self.video)
+		else:
+			sys.exit(1)
+		match = None
+		if self.audio is not None:
+			match = re.search(r'\d+$', os.path.basename(self.audio[:-4]))
+		else:
+			print(self.video)
+			match = re.search(r'\d+$', os.path.basename(self.video[:-4]))
+		self.participant_name = match.group()
 		self.loglevel = args[2]
 		self.run_mode = args[3]
 		self.audio_interviewer = args[4]
@@ -60,14 +82,12 @@ class pipe:
 		self.whisper_path = r"C:\Users\a1863615\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts\whisper.exe"
 		self.feat_detect = r"C:\Users\a1863615\Downloads\OpenFace_2.2.0_win_x64\OpenFace_2.2.0_win_x64\FeatureExtraction.exe"
 
-
-
-	def get_patients(self, directory):
-		patients = list()
+	def get_participants(self, directory):
+		participants = list()
 		for entry in os.listdir(directory):
 			if os.path.isdir(os.path.join(directory, entry)):
-				patients.append(entry)
-		return patients
+				participants.append(entry)
+		return participants
 
 	def shutdown(self, exitcode, msg, files=None):
 		if exitcode == 1:
@@ -78,97 +98,183 @@ class pipe:
 			sys.exit(1)
 		self.logger.info(msg)
 
-		
 	def check_filepaths(self):
-		if self.run_mode != "audio" and not os.path.isfile(self.video):
-			self.shutdown(1, "\tThe provided path {0} is not valid".format(self.video))
-		if self.run_mode != "video" and not os.path.isfile(self.audio):
-			self.shutdown(1, "\tThe provided path {0} is not valid".format(self.audio))
+		if self.run_mode != "audio" and self.video is None:
+			self.shutdown(1, "\tThe video file could not found")
+		if self.run_mode != "video" and self.audio is  None:
+			self.shutdown(1, "\tThe audio file could not be found")
 
 	def run_opensmile(self):
-		self.logger.debug("\tStarting opensmile.")
-		smile = opensmile.Smile(
-    	feature_set = opensmile.FeatureSet.eGeMAPSv02,
-    	feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
-		)
-		features = smile.feature_names
-		opensmile_path = f"{self.patient_dir}\\{self.patient_name}"
-		f = open(f"{opensmile_path}_summary_opensmile.csv", 'w')
-		fI = open(f"{opensmile_path}_opensmile.csv", 'w')
-		writer = csv.writer(f)
-		writer.writerow([feature for feature in features])
-		features = smile.process_file(self.audio)
-		averageFeatures = features.mean()
-		writer.writerow(averageFeatures)    
-		f.close()
-		self.logger.debug("\tOpensmile has completed successfully.")
+		opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
+		f_summary = f"{opensmile_path}_summary_opensmile.csv"
+		f_individual = f"{opensmile_path}_opensmile.csv"
+		if os.path.isfile(f_individual) and os.path.isfile(f_summary):
+			self.logger.info("\tOutput files already exist. Skipping OpenSmile...")
+		else:
+			self.logger.debug("\tStarting opensmile.")
+			smile = opensmile.Smile(
+				feature_set = opensmile.FeatureSet.eGeMAPSv02,
+				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
+			)
+			features = smile.process_file(self.audio)
+			with open(f_summary, 'w', newline='') as f:
+				writer = csv.writer(f)
+				writer.writerow(features.keys())
+				averageFeatures = [np.mean(features[key]) for key in features.keys()]
+				writer.writerow(averageFeatures)
+			with open(f_individual, 'w', newline='') as file:
+				writer = csv.writer(file)
+				writer.writerow(features.keys())
+				for key in features.keys():
+					writer.writerow(features[key])
+			self.logger.debug("\tOpensmile has completed successfully.")
 
 	def run_whisper(self, model):
-		if os.path.isfile(f"{self.patient_dir}\\{self.output_name}.mp3") == False:
+		if os.path.isfile(f"{self.participant_dir}\\{self.output_name}.mp3") == False:
 			self.shutdown(1, "Cleaned mp3 files could not be found. Please do not move or delete them.")
 		self.logger.info("Starting whisper.")
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
 			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
-		log_file = self.patient_name + "_whisper.log"
-		self.transcript = f"{self.patient_dir}\\{self.output_name}.txt"
+		log_file = self.participant_name + "_whisper.log"
+		self.transcript = f"{self.participant_dir}\\{self.output_name}.txt"
 		if os.path.isfile(self.transcript):
-			self.logger.info("Transcript for this patient already exists. Skipping transcription...")
+			self.logger.info("Transcript for this participant already exists. Skipping transcription...")
 		else:
-			self.linux_audio = f"{self.patient_dir}\\{self.output_name}.mp3"
+			self.linux_audio = f"{self.participant_dir}\\{self.output_name}.mp3"
 			linux_audio = self.linux_audio.replace('\\','/')
-			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --output_dir {self.patient_dir}> {self.log_dir}\\{log_file} 2>&1'
-			self.logger.debug("\tRunning whisper on cleaned patient file using {}.".format(command))
+			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
+			self.logger.debug("\tRunning whisper on cleaned participant file using {}.".format(command))
 			subprocess.check_output(command, shell=True)
-			self.logger.info("\twhisper (patient) has finished successfully.")
+			self.logger.info("\twhisper (participant) has finished successfully.")
 		
-		log_file = self.patient_name + "_whisper_interviewer.log"
+		log_file = self.participant_name + "_whisper_interviewer.log"
 		self.transcript_int = f"{self.audio_interviewer[:-4]}.txt"
 		if os.path.isfile(self.transcript_int):
 			self.logger.info("Transcript for this interviewer already exists. Skipping transcription...")
 		else:
 			self.linux_audio = f"{self.audio_interviewer}"
 			linux_audio = self.linux_audio.replace('\\','/')
-			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --output_dir {self.patient_dir}> {self.log_dir}\\{log_file} 2>&1'
+			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
 			self.logger.debug("\tRunning whisper on cleaned interviewer file using {}.".format(command))
 			subprocess.check_output(command, shell=True)
 			self.logger.info("\twhisper (interviewer) has finished successfully.")
 
 	def run_audio(self):
-		if self.audio.endswith('mp4'):
+		if self.audio.endswith('mp4') and not os.path.isfile(f'{self.audio[:-4]}.mp3'):
 			self.logger.info('Found mp4 audio file. Converting to mp3...')
 			command = f'{self.ffmpeg_path} -i {self.audio} {self.audio[:-4]}.mp3'
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
-				self.logger.error(f'\twhisper returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-				self.shutdown(1, "\tAudio file could not be converted to .mp3. If this issue persists, manually convert and reupload it.")
-			self.logger.info("\tAudio file has been converted to mp3")
-			self.audio =  f'{self.audio[:-4]}.mp3'
-		self.clean_audio(1, 1, -50, -1, 5, -50)
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tAudio file participant could not be converted to .mp3. If this issue persists, manually convert and reupload it.")
+			self.logger.info("\tAudio file participant has been converted to mp3")
+
+		if self.audio_interviewer.endswith('mp4') and not os.path.isfile(f'{self.audio_interviewer[:-4]}.mp3'):
+			self.logger.info('Found mp4 audio file. Converting to mp3...')
+			command = f'{self.ffmpeg_path} -i {self.audio_interviewer} {self.audio_interviewer[:-4]}.mp3'
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tAudio file interviewer could not be converted to .mp3. If this issue persists, manually convert and reupload it.")
+			self.logger.info("\tAudio file interviewer has been converted to mp3")
+		
+		self.audio_interviewer = f'{self.audio_interviewer[:-4]}.mp3'
+		self.clean_audio(5)
 		self.run_opensmile() 
 		self.run_whisper("base")
-		self.run_nltk(f'{self.patient_dir}\\{self.patient_name}_nltk_results.txt', f'{self.patient_dir}\\{self.patient_name}_sim_scores.csv', f'{self.patient_dir}\\{self.patient_name}_nltk_results.csv')
+		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv', f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv')
 
 	def run_video(self):
-		self.logger.info('Starting openface.')
-		self.log_dir = self.patient_dir + r'\logs'
-		log_file = self.patient_name + "_openface.log"
-		try:
-			os.mkdir(self.log_dir)
-		except OSError:
-			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
-		log_path = f"{self.log_dir}\\{log_file}"
-		if not os.path.isfile(self.video):
-			self.logger.error("No video file was found.")
-		command = f'{self.feat_detect} -f {self.video} --out_dir {self.patient_dir} -verbose > {log_path} 2>&1'
-		self.logger.info(f"Running openface with command {command}")
-		exit_c, output = subprocess.getstatusoutput(command)
-		if exit_c != 0:
-			self.logger.error(f'\tOpenface returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-			self.shutdown(1, "\tExecution cancelled due to error in openface.")
-		self.logger.info("\tOpenface has finished successfully.")
+		openface_out = f'{self.video[:-4]}.csv'
+		if os.path.isfile(openface_out):
+			self.logger.info("Output files already exist. Skipping OpenFace...")
+		else:
+			self.logger.info('Starting openface.')
+			self.log_dir = self.participant_dir + r'\logs'
+			log_file = self.participant_name + "_openface.log"
+			try:
+				os.mkdir(self.log_dir)
+			except OSError:
+				self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+			log_path = f"{self.log_dir}\\{log_file}"
+			if not os.path.isfile(self.video):
+				self.logger.error("No video file was found.")
+			command = f'{self.feat_detect} -f {self.video} -out_dir {self.participant_dir} -verbose > {log_path} 2>&1'
+			self.logger.info(f"Running openface with command {command}")
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tOpenface returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tExecution cancelled due to error in openface.")
+		with open(openface_out, 'r') as file:
+			reader = csv.reader(file)
+			rows = list(reader)
+		part_silence_list = self.parse_silence_file(self.output_sr)
+		int_silence_list = self.parse_silence_file(self.output_sr_int)
+		edited_rows = self.check_silence_periods(part_silence_list, int_silence_list, rows)
+		with open(f'{self.video[:-4]}.csv', 'w', newline='') as file:
+			writer = csv.writer(file)
+			for row in edited_rows:
+				writer.writerow(row)
 
+	def parse_silence_file(self, file_path):
+		silence_list = []
+		with open(file_path, 'r') as file:
+			for line in file:
+					match = re.search(r'silence_end: (\d+\.\d+).*silence_duration: (\d+\.\d+)', line)
+					if match:
+						end = float(match.group(1))
+						dur = float(match.group(2))
+						start = end - dur
+						silence_list += [start,end]
+		return silence_list
+
+
+	def check_silence_periods(self, silence_list, silence_list_int, rows):
+		current_start = silence_list[0]
+		current_end = silence_list[1]
+		period_index = 2 
+		modified_rows = []
+		rows[0].extend(["participant speech", "interviewer speech"])
+		modified_rows.append(rows[0])
+		current_start_int = silence_list[0]
+		current_end_int = silence_list[1]
+		period_index_int = 2 
+
+		for row in rows[1:]:
+			timestamp = float(row[2])
+			end_flag = False
+			end_flag_int = False
+
+			if current_start <= timestamp < current_end and end_flag is not True:
+				silence_flag = 0
+			else:
+				silence_flag = 1
+			row.append(str(silence_flag))
+
+			if timestamp > current_end:
+				if silence_list[-1] == current_end:
+					end_flag = True
+				else:
+					current_start = silence_list[period_index]
+					current_end = silence_list[period_index + 1]
+					period_index += 2
+
+			if current_start_int <= timestamp < current_end_int and end_flag_int is not True:
+				silence_flag_int = 0
+			else:
+				silence_flag_int = 1
+			row.append(str(silence_flag_int))
+			modified_rows.append(row)
+			if timestamp > current_end_int:
+				if silence_list_int[-1] == current_end_int:
+					end_flag_int = True
+				else:
+					current_start_int = silence_list_int[period_index_int]
+					current_end_int = silence_list_int[period_index_int + 1]
+					period_index_int += 2
+		return modified_rows
 
 	def delete_files(self, files):
 		for file in files:
@@ -197,7 +303,8 @@ class pipe:
 		vectorizer = TfidfVectorizer()
 		X = vectorizer.fit_transform(sentences)
 		similarity_matrix = cosine_similarity(X)
-	
+
+
 		with open(lsa_output, "w", newline="") as f:
 			writer = csv.writer(f)
 			head = ["Sentence"] + [sentence for sentence in sentences]
@@ -211,7 +318,15 @@ class pipe:
 		int_sentences = nltk.tokenize.sent_tokenize(all_int_text)
 		num_sent = len(sentences)
 		num_int_sent = len(int_sentences)
-		
+		neighbour_scores = []
+		for i in range(num_sent-1):
+			for j in range(i+1, num_sent):
+				if abs(i-j) == 1:
+					neighbour_scores.append(similarity_matrix[i][j])
+		avg_sim_score = 0
+		if neighbour_scores:
+			avg_sim_score = sum(neighbour_scores)/len(neighbour_scores)
+
 		# Do sentiment scores per sentence
 		sia = SentimentIntensityAnalyzer()
 		sentiment_scores = [sia.polarity_scores(sentence) for sentence in sentences]
@@ -269,38 +384,63 @@ class pipe:
 			for key in DEP_tags:
 				val = dep_counter.get(key,0)
 				DEP_val_list.append(val)
-			
 
-			data = ["avg sentence len", "neg sent", "neu sent", "pos sent", "comp sent", "pat/int"]
+			data = ["avg sentence len", "neg sent", "neu sent", "pos sent", "comp sent", "pat/int", "pat sent", "int sent", "avg sim score"]
 			col_names = data + POS_tags + DEP_tags
-			head = ["patient"] + [col for col in col_names]
+			head = ["participant"] + [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
 			writer.writerow(head)
-			body = [self.patient_name, avg_sentence_length] + overall_sentiment_list + [num_sent/(num_sent+num_int_sent)] + POS_val_list + DEP_val_list
+			body = [self.participant_name, avg_sentence_length] + overall_sentiment_list + [num_sent/(num_sent+num_int_sent), num_sent, num_int_sent, avg_sim_score] + POS_val_list + DEP_val_list
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
 
-	def clean_audio(self, start_p, start_d, start_t, stop_p, stop_d, stop_t):
-		self.output_name = self.patient_name + "_cleaned"
-		self.log_dir = self.patient_dir + r'\logs'
-		log_file = self.patient_name + "_ffmpeg.log"
+	def clean_audio(self, stop_d):
+		self.output_name = self.participant_name + "_cleaned"
+		self.log_dir = self.participant_dir + r'\logs'
+		log_file = self.participant_name + "_ffmpeg.log"
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
 			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
 		log_path = f"{self.log_dir}\\{log_file}"
-		output_path = f"{self.patient_dir}\\{self.output_name}.mp3"
-		if os.path.isfile(output_path) == False:
-			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration=5" {output_path} > {log_path} 2>&1'
-			self.logger.debug("\tRunning ffmpeg on patient file using {}.".format(command))
+		output_path = f"{self.participant_dir}\\{self.output_name}.mp3"
+		output_path_int = f'{output_path[:-4]}_int.mp3'
+		self.output_sr = f"{self.participant_dir}\\silenceremove.txt"
+		self.output_sr_int = f"{self.participant_dir}\\silenceremove_int.txt"
+		if os.path.isfile(output_path) and os.path.isfile(self.output_sr) and os.path.isfile(self.output_sr_int) and os.path.isfile(output_path_int):
+			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
+		else:
+			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
+			self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [])
+
+			command = f'{self.ffmpeg_path} -i "{self.audio_interviewer}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr_int} 2>&1'
+			self.logger.debug("\tRunning ffmpeg detection on interviewer file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [])
+
+			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration={stop_d}" {output_path} >> {log_path} 2>&1'
+			self.logger.debug("\tRunning ffmpeg removal on participant file using {}.".format(command))
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
 				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
 				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [self.output_name + ".mp3"])
 			self.logger.info("\tffmpeg has finished successfully.")
-		else:
-			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
+			
+			command = f'{self.ffmpeg_path} -i "{self.audio_interviewer}" -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration={stop_d}" {output_path_int} >> {log_path} 2>&1'
+			self.logger.debug("\tRunning ffmpeg removal on interviewer file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [self.output_name + ".mp3"])
+			self.logger.info("\tffmpeg has finished successfully.")
+
 
 
 	def run_pipe(self):
@@ -327,16 +467,16 @@ class pipeParser:
 					video = None
 					audio = None
 					int_audio = None
-					for patient_dir in os.listdir(interviews_path):
-						patient_dir_path = os.path.join(interviews_path, patient_dir)
-						for f in os.listdir(patient_dir_path):
-							file = os.path.join(patient_dir_path, f)
+					for participant_dir in os.listdir(interviews_path):
+						participant_dir_path = os.path.join(interviews_path, participant_dir)
+						for f in os.listdir(participant_dir_path):
+							file = os.path.join(participant_dir_path, f)
 							print(file)
 							if (f.startswith('Audio_Participant')):
 								audio = file
 							elif (f.startswith('Audio_Interviewer')):
 								int_audio = file
-							elif f.startswith('Video'):
+							elif f.startswith('Video') and f.endswith('mp4'):
 								video = file
 						all_args.append([audio, video, log_level, run_mode, int_audio])
 					return len(all_args), all_args
@@ -369,7 +509,7 @@ def clear_data(path):
 
             for filename in files:
                 file_path = os.path.join(root, filename)
-                if (not ((filename.startswith('Audio') and (filename.endswith('mp4') or filename.endswith('mp3'))) or filename.startswith('Video')) or (filename.endswith('_cleaned.mp3'))):
+                if (not ((filename.startswith('Audio') and (filename.endswith('mp4') or filename.endswith('mp3'))) or (filename.startswith('Video') and filename.endswith('mp4')))):
                     print(f"Deleting file: {file_path}")
                     os.remove(file_path)
     except Exception as e:
