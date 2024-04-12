@@ -30,14 +30,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 VERSION = '1.0'
 
 # To do:
-# Run ffmpeg silencedetect on interviewer and participant
-# Store beginning and end point in list
-# silence_list_participant
-# silence_list_interviewer
-# Between each time points of silence, fill corresponding column in with 0's
-# Then, fill every still empty slot with 1's
-
-# openface emotion detection
+# Fix naming.
+# Create opnsmile/face/nltk summary file for all patients.
 # python wrapper
 
 class pipe:
@@ -46,17 +40,13 @@ class pipe:
 		self.video = args[1]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
+			print(self.participant_dir)
 		elif self.video is not None:
 			self.participant_dir = os.path.dirname(self.video)
+			print(self.participant_dir)
 		else:
 			sys.exit(1)
-		match = None
-		if self.audio is not None:
-			match = re.search(r'\d+$', os.path.basename(self.audio[:-4]))
-		else:
-			print(self.video)
-			match = re.search(r'\d+$', os.path.basename(self.video[:-4]))
-		self.participant_name = match.group()
+		self.participant_name = os.path.basename(self.participant_dir)
 		self.loglevel = args[2]
 		self.run_mode = args[3]
 		self.audio_interviewer = args[4]
@@ -114,7 +104,7 @@ class pipe:
 			self.logger.debug("\tStarting opensmile.")
 			smile = opensmile.Smile(
 				feature_set = opensmile.FeatureSet.eGeMAPSv02,
-				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
+				# feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 			)
 			features = smile.process_file(self.audio)
 			with open(f_summary, 'w', newline='') as f:
@@ -149,18 +139,6 @@ class pipe:
 			subprocess.check_output(command, shell=True)
 			self.logger.info("\twhisper (participant) has finished successfully.")
 		
-		log_file = self.participant_name + "_whisper_interviewer.log"
-		self.transcript_int = f"{self.audio_interviewer[:-4]}.txt"
-		if os.path.isfile(self.transcript_int):
-			self.logger.info("Transcript for this interviewer already exists. Skipping transcription...")
-		else:
-			self.linux_audio = f"{self.audio_interviewer}"
-			linux_audio = self.linux_audio.replace('\\','/')
-			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
-			self.logger.debug("\tRunning whisper on cleaned interviewer file using {}.".format(command))
-			subprocess.check_output(command, shell=True)
-			self.logger.info("\twhisper (interviewer) has finished successfully.")
-
 	def run_audio(self):
 		if self.audio.endswith('mp4') and not os.path.isfile(f'{self.audio[:-4]}.mp3'):
 			self.logger.info('Found mp4 audio file. Converting to mp3...')
@@ -181,13 +159,12 @@ class pipe:
 			self.logger.info("\tAudio file interviewer has been converted to mp3")
 		
 		self.audio_interviewer = f'{self.audio_interviewer[:-4]}.mp3'
-		self.clean_audio(5)
 		self.run_opensmile() 
 		self.run_whisper("base")
 		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv', f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv')
 
 	def run_video(self):
-		openface_out = f'{self.video[:-4]}.csv'
+		openface_out = f'{self.video[:-10]}.csv'
 		if os.path.isfile(openface_out):
 			self.logger.info("Output files already exist. Skipping OpenFace...")
 		else:
@@ -201,7 +178,7 @@ class pipe:
 			log_path = f"{self.log_dir}\\{log_file}"
 			if not os.path.isfile(self.video):
 				self.logger.error("No video file was found.")
-			command = f'{self.feat_detect} -f {self.video} -out_dir {self.participant_dir} -verbose > {log_path} 2>&1'
+			command = f'{self.feat_detect} -f {self.video} -out_dir {self.participant_dir} -of {self.participant_name} > {log_path} 2>&1'
 			self.logger.info(f"Running openface with command {command}")
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
@@ -213,6 +190,8 @@ class pipe:
 		part_silence_list = self.parse_silence_file(self.output_sr)
 		int_silence_list = self.parse_silence_file(self.output_sr_int)
 		edited_rows = self.check_silence_periods(part_silence_list, int_silence_list, rows)
+		au_count = self.count_binary_aus(rows)
+		print(self.participant_name, au_count)
 		with open(f'{self.video[:-4]}.csv', 'w', newline='') as file:
 			writer = csv.writer(file)
 			for row in edited_rows:
@@ -230,6 +209,16 @@ class pipe:
 						silence_list += [start,end]
 		return silence_list
 
+	def count_binary_aus(self, rows):
+		au_count = [0]*18
+		last_val = [0]*18
+		for row in rows[1:]:
+			for i in range(696, 714):
+				if int(float(row[i].strip())) == 1:
+					if last_val[i-696] == 0:
+						au_count[i-696] += 1
+				last_val[i-696] = int(float(row[i].strip()))
+		return au_count
 
 	def check_silence_periods(self, silence_list, silence_list_int, rows):
 		current_start = silence_list[0]
@@ -238,8 +227,8 @@ class pipe:
 		modified_rows = []
 		rows[0].extend(["participant speech", "interviewer speech"])
 		modified_rows.append(rows[0])
-		current_start_int = silence_list[0]
-		current_end_int = silence_list[1]
+		current_start_int = silence_list_int[0]
+		current_end_int = silence_list_int[1]
 		period_index_int = 2 
 
 		for row in rows[1:]:
@@ -295,8 +284,6 @@ class pipe:
 		with open(file, 'r') as f:
 			all_text = f.read()
 		self.logger.info("\tStarting semantic analysis.")
-		with open(self.transcript_int, 'r') as f_i:
-			all_int_text = f_i.read()
 		#LSA
 		nlp = spacy.load("en_core_web_sm")
 		sentences = [self.preprocess_text(sent.text,nlp) for sent in nlp(all_text).sents]
@@ -315,17 +302,16 @@ class pipe:
 		
 		# Fragment into sentences
 		sentences = nltk.tokenize.sent_tokenize(all_text)
-		int_sentences = nltk.tokenize.sent_tokenize(all_int_text)
 		num_sent = len(sentences)
-		num_int_sent = len(int_sentences)
-		neighbour_scores = []
-		for i in range(num_sent-1):
-			for j in range(i+1, num_sent):
-				if abs(i-j) == 1:
-					neighbour_scores.append(similarity_matrix[i][j])
+		# neighbour_scores = []
+		# for i in range(num_sent-1):
+		# 	for j in range(i+1, num_sent):
+		# 		if abs(i-j) == 1:
+		# 			neighbour_scores.append(similarity_matrix[i][j])
+		# avg_sim_score = 0
+		# if neighbour_scores:
+		# 	avg_sim_score = sum(neighbour_scores)/len(neighbour_scores)
 		avg_sim_score = 0
-		if neighbour_scores:
-			avg_sim_score = sum(neighbour_scores)/len(neighbour_scores)
 
 		# Do sentiment scores per sentence
 		sia = SentimentIntensityAnalyzer()
@@ -385,12 +371,12 @@ class pipe:
 				val = dep_counter.get(key,0)
 				DEP_val_list.append(val)
 
-			data = ["avg sentence len", "neg sent", "neu sent", "pos sent", "comp sent", "pat/int", "pat sent", "int sent", "avg sim score"]
+			data = ["avg sentence len", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score"]
 			col_names = data + POS_tags + DEP_tags
 			head = ["participant"] + [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
 			writer.writerow(head)
-			body = [self.participant_name, avg_sentence_length] + overall_sentiment_list + [num_sent/(num_sent+num_int_sent), num_sent, num_int_sent, avg_sim_score] + POS_val_list + DEP_val_list
+			body = [self.participant_name, avg_sentence_length] + overall_sentiment_list + [avg_sim_score] + POS_val_list + DEP_val_list
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
@@ -443,11 +429,33 @@ class pipe:
 
 
 
+	def cut_video(self):
+		self.log_dir = self.participant_dir + r'\logs'
+		log_file = self.participant_name + "_ffmpeg.log"
+		cropped_video = f'{self.participant_dir}\\{self.participant_name}_video.mp4'
+		try:
+			os.mkdir(self.log_dir)
+		except OSError:
+			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+		log_path = f"{self.log_dir}\\{log_file}"
+		if os.path.isfile(cropped_video):
+			self.logger.info("\tVideo has already been cropped. Skipping step and continuing...")
+		else:
+			command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
+			self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [])
+		self.video = cropped_video
+
 	def run_pipe(self):
 		self.check_filepaths()
+		self.clean_audio(5)
 		if self.run_mode != "video":
 			self.run_audio()
 		if self.run_mode != "audio":
+			self.cut_video()
 			self.run_video()
 
 class pipeParser:
@@ -472,11 +480,11 @@ class pipeParser:
 						for f in os.listdir(participant_dir_path):
 							file = os.path.join(participant_dir_path, f)
 							print(file)
-							if (f.startswith('Audio_Participant')):
+							if (f.endswith('2.mp4')):
 								audio = file
-							elif (f.startswith('Audio_Interviewer')):
+							elif (f.endswith('1.mp4')):
 								int_audio = file
-							elif f.startswith('Video') and f.endswith('mp4'):
+							elif f.find('gvo') != -1 and f.endswith('.mp4'):
 								video = file
 						all_args.append([audio, video, log_level, run_mode, int_audio])
 					return len(all_args), all_args
@@ -509,14 +517,12 @@ def clear_data(path):
 
             for filename in files:
                 file_path = os.path.join(root, filename)
-                if (not ((filename.startswith('Audio') and (filename.endswith('mp4') or filename.endswith('mp3'))) or (filename.startswith('Video') and filename.endswith('mp4')))):
+                if (not (filename.endswith('mp4'))):
                     print(f"Deleting file: {file_path}")
                     os.remove(file_path)
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
- 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--file", "-f", help = "The name of your file containing the arguments you want to use.")
