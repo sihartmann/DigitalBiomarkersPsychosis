@@ -50,6 +50,8 @@ class pipe:
 		self.participant_name = os.path.basename(self.participant_dir)
 		self.loglevel = args[2]
 		self.run_mode = args[3]
+		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
+		self.summary =  f'{self.participant_dir}\\{self.participant_name}_all_summary.csv'
 		self.audio_interviewer = args[4]
 		stderrhandler = logging.StreamHandler()
 		stderrhandler.setLevel(int(self.loglevel))
@@ -97,9 +99,9 @@ class pipe:
 
 	def run_opensmile(self):
 		opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
-		f_summary = f"{opensmile_path}_summary_opensmile.csv"
+		self.f_summary = f"{opensmile_path}_summary_opensmile.csv"
 		f_individual = f"{opensmile_path}_opensmile.csv"
-		if os.path.isfile(f_individual) and os.path.isfile(f_summary):
+		if os.path.isfile(f_individual) and os.path.isfile(self.f_summary):
 			self.logger.info("\tOutput files already exist. Skipping OpenSmile...")
 		else:
 			self.logger.debug("\tStarting opensmile.")
@@ -116,7 +118,7 @@ class pipe:
 			)
 			features = smile_summary.process_file(self.audio)
 			df = pd.DataFrame(features, columns=smile_summary.feature_names)
-			df.to_csv(f_summary, index=False)
+			df.to_csv(self.f_summary, index=False)
 			self.logger.debug("\tOpensmile has completed successfully.")
 
 	def run_whisper(self, model):
@@ -161,7 +163,7 @@ class pipe:
 		self.audio_interviewer = f'{self.audio_interviewer[:-4]}.mp3'
 		self.run_opensmile() 
 		self.run_whisper("base")
-		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv', f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv')
+		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
 
 	def run_video(self):
 		openface_out = f'{self.video[:-10]}.csv'
@@ -191,12 +193,44 @@ class pipe:
 		int_silence_list = self.parse_silence_file(self.output_sr_int)
 		edited_rows = self.check_silence_periods(part_silence_list, int_silence_list, rows)
 		au_count = self.count_binary_aus(rows)
-		print(self.participant_name, au_count)
+		self.openface_out = f"{self.participant_dir}\\{self.participant_name}_openface_out.csv"
 		with open(f'{self.video[:-4]}.csv', 'w', newline='') as file:
 			writer = csv.writer(file)
 			for row in edited_rows:
 				writer.writerow(row)
+		with open(self.openface_out, 'w', newline='') as f:
+			writer = csv.writer(f)
+			writer.writerow([ "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
+					 "AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c"])
+			writer.writerow(au_count)
 
+	def write_own_summary(self):
+		own_summary = f"{self.participant_dir}\\{self.participant_name}_summary.csv"
+		if os.path.isfile(own_summary):
+			self.logger.info("Participant's summary file alredy exists. Skipping...")
+		header_list = []
+		content_list = []
+		if self.run_mode != "video":
+			with open(self.nltk_out, 'r') as f:
+				reader = list(csv.reader(f))
+				header_list += reader[0]
+				content_list += (reader[1])
+			with open(self.f_summary, 'r') as f:
+				reader = list(csv.reader(f))
+				header_list += (reader[0])
+				content_list += (reader[1])
+		if self.run_mode != "audio":
+			with open(self.openface_out, 'r') as f:
+				reader = list(csv.reader(f))
+				header_list += (reader[0])
+				content_list += (reader[1])
+		with open(self.summary, 'w', newline='') as f:
+			writer = csv.writer(f)
+			writer.writerow(header_list)
+			writer.writerow(content_list)
+
+	def write_group_summary(self):
+		pass
 	def parse_silence_file(self, file_path):
 		silence_list = []
 		with open(file_path, 'r') as file:
@@ -456,6 +490,7 @@ class pipe:
 		if self.run_mode != "audio":
 			self.cut_video()
 			self.run_video()
+		self.write_own_summary()
 
 class pipeParser:
 	def parse_args(self, args):
