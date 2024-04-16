@@ -303,15 +303,14 @@ class pipe:
 		# Fragment into sentences
 		sentences = nltk.tokenize.sent_tokenize(all_text)
 		num_sent = len(sentences)
-		# neighbour_scores = []
-		# for i in range(num_sent-1):
-		# 	for j in range(i+1, num_sent):
-		# 		if abs(i-j) == 1:
-		# 			neighbour_scores.append(similarity_matrix[i][j])
-		# avg_sim_score = 0
-		# if neighbour_scores:
-		# 	avg_sim_score = sum(neighbour_scores)/len(neighbour_scores)
+		neighbour_scores = []
+		for i in range(num_sent-1):
+			for j in range(num_sent -1):
+				if abs(i-j) == 1:
+					neighbour_scores.append(similarity_matrix[i][j])
 		avg_sim_score = 0
+		if neighbour_scores:
+			avg_sim_score = sum(neighbour_scores)/len(neighbour_scores)
 
 		# Do sentiment scores per sentence
 		sia = SentimentIntensityAnalyzer()
