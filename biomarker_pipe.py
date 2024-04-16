@@ -13,6 +13,7 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 import contractions
 import spacy
 import numpy as np
+import pandas as pd
 import string
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -104,19 +105,18 @@ class pipe:
 			self.logger.debug("\tStarting opensmile.")
 			smile = opensmile.Smile(
 				feature_set = opensmile.FeatureSet.eGeMAPSv02,
-				# feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
+				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 			)
 			features = smile.process_file(self.audio)
-			with open(f_summary, 'w', newline='') as f:
-				writer = csv.writer(f)
-				writer.writerow(features.keys())
-				averageFeatures = [np.mean(features[key]) for key in features.keys()]
-				writer.writerow(averageFeatures)
-			with open(f_individual, 'w', newline='') as file:
-				writer = csv.writer(file)
-				writer.writerow(features.keys())
-				for key in features.keys():
-					writer.writerow(features[key])
+			df = pd.DataFrame(features, columns=smile.feature_names)
+			df.to_csv(f_individual, index=False)
+
+			smile_summary = opensmile.Smile(
+				feature_set = opensmile.FeatureSet.eGeMAPSv02
+			)
+			features = smile_summary.process_file(self.audio)
+			df = pd.DataFrame(features, columns=smile_summary.feature_names)
+			df.to_csv(f_summary, index=False)
 			self.logger.debug("\tOpensmile has completed successfully.")
 
 	def run_whisper(self, model):
