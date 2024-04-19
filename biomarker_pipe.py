@@ -1,3 +1,7 @@
+"""
+Pipeline for extraction of facial, acoustic and linguistic features from HIPAA Zoom recordings.
+@author: Oliver Williams
+"""
 import argparse
 import logging
 import multiprocessing.process
@@ -13,43 +17,32 @@ import regex as re
 from nltk.sentiment import SentimentIntensityAnalyzer
 import contractions
 import spacy
-import numpy as np
 import pandas as pd
 import string
-from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Necessary data downloads:
-# nltk.download('maxent_ne_chunker')
-# nltk.download('words')
-# nltk.download('vader_lexicon')
-# nltk.download('averaged_perceptron_tagger')
-# nltk.download('wordnet')
-# nltk.download('punkt')
-# nltk.download('stopwords')
-
 VERSION = '1.0'
 
-# To do:
-# Do au count per second, only for patient, only total, one if silent, one if not.
-
+## Main processing class.
 class pipe:
+	# Parse arguments and set up logging.
 	def parse_args(self, args):
 		self.audio = args[0]
 		self.video = args[1]
+		self.loglevel = args[2]
+		self.run_mode = args[3]
+		self.audio_interviewer = args[4]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
 			self.participant_dir = os.path.dirname(self.video)
 		else:
-			sys.exit(1)
+			raise Exception("You must provide video and/or audio files.")
+		
 		self.participant_name = os.path.basename(self.participant_dir)
-		self.loglevel = args[2]
-		self.run_mode = args[3]
 		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
 		self.summary =  f'{self.participant_dir}\\..\\all_summary.csv'
-		self.audio_interviewer = args[4]
 		stderrhandler = logging.StreamHandler()
 		stderrhandler.setLevel(int(self.loglevel))
 		stderrhandler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
@@ -68,9 +61,9 @@ class pipe:
 		self.logger.info("\tInitializing DigBio")
 		self.logger.info("\tDigBio version: {0}.".format(VERSION))
 		self.logger.debug("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
-		self.ffmpeg_path = r"C:\Users\a1863615\Downloads\ffmpeg-2024-03-11-git-3d1860ec8d-full_build\bin\ffmpeg.exe"
-		self.whisper_path = r"C:\Users\a1863615\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\Scripts\whisper.exe"
-		self.feat_detect = r"C:\Users\a1863615\Downloads\OpenFace_2.2.0_win_x64\OpenFace_2.2.0_win_x64\FeatureExtraction.exe"
+		self.ffmpeg_path =  r"ffmpeg.exe"
+		self.whisper_path = r"whisper.exe"
+		self.feat_detect =  r"OpenFace_2.2.0_win_x64\FeatureExtraction.exe"
 
 	def get_participants(self, directory):
 		participants = list()
@@ -90,9 +83,9 @@ class pipe:
 
 	def check_filepaths(self):
 		if self.run_mode != "audio" and self.video is None:
-			self.shutdown(1, "\tThe video file could not found")
+			self.shutdown(1, "\tThe video file could not found.")
 		if self.run_mode != "video" and self.audio is  None:
-			self.shutdown(1, "\tThe audio file could not be found")
+			self.shutdown(1, "\tThe audio file could not be found.")
 
 	def run_opensmile(self):
 		opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
@@ -161,6 +154,8 @@ class pipe:
 		if os.path.isfile(openface_out):
 			self.logger.info("Output files already exist. Skipping OpenFace...")
 		else:
+			if self.audio is None:
+				self.logger.warning("No audio files found. Video analysis will run without silence detection.")
 			self.logger.info('Starting openface.')
 			self.log_dir = self.participant_dir + r'\logs'
 			log_file = self.participant_name + "_openface.log"
@@ -180,9 +175,15 @@ class pipe:
 		with open(openface_out, 'r') as file:
 			reader = csv.reader(file)
 			rows = list(reader)
-		part_silence_list = self.parse_silence_file(self.output_sr)
-		edited_rows = self.check_silence_periods(part_silence_list, rows)
-		au_count = self.count_binary_aus(edited_rows)
+			self.video_len = float(rows[-1][2].strip())
+		if self.audio is not None:
+			part_silence_list = self.parse_silence_file(self.output_sr)
+			edited_rows = self.check_silence_periods(part_silence_list, rows)
+			audio_off = 0
+		else:
+			edited_rows = rows
+			audio_off = 1
+		au_count = self.count_binary_aus(edited_rows, audio_off)
 		self.openface_out = f"{self.participant_dir}\\{self.participant_name}_openface_out.csv"
 		with open(f'{self.video[:-4]}.csv', 'w', newline='') as file:
 			writer = csv.writer(file)
@@ -190,11 +191,17 @@ class pipe:
 				writer.writerow(row)
 		with open(self.openface_out, 'w', newline='') as f:
 			writer = csv.writer(f)
-			writer.writerow([ "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
-					 "AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c", "AU01_c_sil", "AU02_c_sil",  "AU04_c_sil" ,"AU05_c_sil", "AU06_c_sil", "AU07_c_sil", "AU09_c_sil", "AU10_c_sil", "AU12_c_sil",
-					 "AU14_c_sil", "AU15_c_sil", "AU17_c_sil", "AU20_c_sil", "AU23_c_sil", "AU25_c_sil", "AU26_c_sil", "AU28_c_sil", "AU45_c_sil", "AU01_c_sp", "AU02_c_sp",  "AU04_c_sp" ,"AU05_c_sp", "AU06_c_sp", "AU07_c_sp", "AU09_c_sp", "AU10_c_sp", "AU12_c_sp",
-					 "AU14_c_sp", "AU15_c_sp", "AU17_c_sp", "AU20_c_sp", "AU23_c_sp", "AU25_c_sp", "AU26_c_sp", "AU28_c_sp", "AU45_c_sp"])
-			writer.writerow(au_count[0]+au_count[1]+au_count[2])
+			if not audio_off:
+				writer.writerow([ "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
+						"AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c", "AU01_c_sil", "AU02_c_sil",  "AU04_c_sil" ,"AU05_c_sil", "AU06_c_sil", "AU07_c_sil", "AU09_c_sil", "AU10_c_sil", "AU12_c_sil",
+						"AU14_c_sil", "AU15_c_sil", "AU17_c_sil", "AU20_c_sil", "AU23_c_sil", "AU25_c_sil", "AU26_c_sil", "AU28_c_sil", "AU45_c_sil", "AU01_c_sp", "AU02_c_sp",  "AU04_c_sp" ,"AU05_c_sp", "AU06_c_sp", "AU07_c_sp", "AU09_c_sp", "AU10_c_sp", "AU12_c_sp",
+						"AU14_c_sp", "AU15_c_sp", "AU17_c_sp", "AU20_c_sp", "AU23_c_sp", "AU25_c_sp", "AU26_c_sp", "AU28_c_sp", "AU45_c_sp"])
+				writer.writerow(au_count[0]+au_count[1]+au_count[2])
+			else:
+				writer.writerow([ "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
+						"AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c"])
+				writer.writerow(au_count[0])
+
 
 	def write_own_summary(self):
 		own_summary = f"{self.participant_dir}\\{self.participant_name}_summary.csv"
@@ -233,7 +240,7 @@ class pipe:
 						silence_list += [start,end]
 		return silence_list
 
-	def count_binary_aus(self, rows):
+	def count_binary_aus(self, rows, audio_off):
 		au_count = [0]*18
 		au_count_sil = [0]*18
 		au_count_speech = [0]*18
@@ -243,12 +250,20 @@ class pipe:
 				if int(float(row[i].strip())) == 1:
 					if last_val[i-696] == 0:
 						au_count[i-696] += 1
-						if int(float(row[-1].strip())) == 1:
-							au_count_speech[i-696] += 1
-						elif int(float(row[-1].strip())) == 0:
-							au_count_sil[i-696] += 1
+						if audio_off:
+							if int(float(row[-1].strip())) == 1:
+								au_count_speech[i-696] += 1
+							elif int(float(row[-1].strip())) == 0:
+								au_count_sil[i-696] += 1
 				last_val[i-696] = int(float(row[i].strip()))
-		return [au_count, au_count_sil, au_count_speech]
+		if not audio_off:
+			return_cts = [au_count, au_count_sil, au_count_speech]
+		else:
+			return_cts = [au_count]
+		for cts in return_cts:
+				for i in range(len(cts)):
+					cts[i] /= self.video_len
+		return return_cts
 
 	def check_silence_periods(self, silence_list, rows):
 		current_start = silence_list[0]
@@ -413,6 +428,8 @@ class pipe:
 		self.output_sr = f"{self.participant_dir}\\silenceremove.txt"
 		if os.path.isfile(self.output_path) and os.path.isfile(self.output_sr) and os.path.isfile(self.output_sr_int) and os.path.isfile(self.output_path_int):
 			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
+		elif self.audio == None:
+			self.logger.warning("No audio files provided.")
 		else:
 			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
 			self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
@@ -455,6 +472,8 @@ class pipe:
 class pipeParser:
 	def parse_args(self, args):
 		self.config_name = args.file
+		if not os.path.isfile(self.config_name):
+			raise Exception("Provided config file is not valid.")
 		with open(self.config_name, 'r') as file:
 			lines = file.readlines()
 			if len(lines) == 3:
@@ -483,9 +502,9 @@ class pipeParser:
 							all_args.append([audio, video, log_level, run_mode, int_audio])
 					return len(all_args), all_args
 				else:
-					print(f"Directory path '{interviews_path}' is not valid.")
+					raise Exception(f"Directory path '{interviews_path}' is not valid.")
 			else:
-				print("Invalid configuration file format.")
+				raise Exception("Invalid configuration file format.")
 
 def process_func(queue, my_pipe, args):
 	my_pipe.parse_args(args)
@@ -534,14 +553,14 @@ def make_summary(queue):
 					writer.writerow([item[3]] + item[2])
 	
 if __name__ == '__main__':
+	multiprocessing.freeze_support()
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--file", "-f", help = "The name of your file containing the arguments you want to use.")
+	parser.add_argument("--file", "-f", help = "The name of your file containing the arguments you want to use.", default=r"C:\Users\a1863615\INT\config_win.txt")
 	parser.add_argument("--overwrite", "-o", help = "Use this option if you want to run the pipeline again. This will overwrite old data!", action="store_true")
 	all_args = parser.parse_args()
 	pipeParser = pipeParser()
 	num_procs, parsed_all_args = pipeParser.parse_args(all_args)
 	my_pipes = [pipe() for _ in range(num_procs)]
-	multiprocessing.freeze_support()
 	summary_queue = multiprocessing.Queue()
 	processes = []
 	summary_process = multiprocessing.Process(target=make_summary, args=(summary_queue,))
