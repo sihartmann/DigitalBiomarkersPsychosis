@@ -30,16 +30,17 @@ class pipe:
 	def parse_args(self, args):
 		self.audio = args[0]
 		self.video = args[1]
-		self.loglevel = args[2]
-		self.run_mode = args[3]
-		self.audio_interviewer = args[4]
+		self.audio_interviewer = args[2]
+		self.loglevel = args[3]
+		self.run_mode = args[4]
+		self.no_cut = args[5]
+		self.whisper_model = args[6]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
 			self.participant_dir = os.path.dirname(self.video)
 		else:
 			raise Exception("You must provide video and/or audio files.")
-		
 		self.participant_name = os.path.basename(self.participant_dir)
 		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
 		self.summary =  f'{self.participant_dir}\\..\\all_summary.csv'
@@ -58,12 +59,20 @@ class pipe:
 			case '4':
 				self.logger.setLevel(logging.DEBUG)
 
-		self.logger.info("\tInitializing DigBio")
 		self.logger.info("\tDigBio version: {0}.".format(VERSION))
 		self.logger.debug("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
 		self.ffmpeg_path =  r"ffmpeg.exe"
+		if not os.path.isfile(self.ffmpeg_path):
+			self.logger.error("Missing dependency: ffmpeg.")
+			sys.exit(1)
 		self.whisper_path = r"whisper.exe"
+		if not os.path.isfile(self.whisper_path):
+			self.logger.error("Missing dependency: whisper.")
+			sys.exit(1)
 		self.feat_detect =  r"OpenFace_2.2.0_win_x64\FeatureExtraction.exe"
+		if not os.path.isfile(self.feat_detect):
+			self.logger.error("Missing dependency: openface.")
+			sys.exit(1)
 
 	def get_participants(self, directory):
 		participants = list()
@@ -72,21 +81,6 @@ class pipe:
 				participants.append(entry)
 		return participants
 
-	def shutdown(self, exitcode, msg, files=None):
-		if exitcode == 1:
-			if files is not None:
-				self.logger.warning(f'\tThe following files may be corrupted and will be deleted: {files}'.format(files))
-				self.delete_files(files)
-			self.logger.error(msg)
-			sys.exit(1)
-		self.logger.info(msg)
-
-	def check_filepaths(self):
-		if self.run_mode != "audio" and self.video is None:
-			self.shutdown(1, "\tThe video file could not found.")
-		if self.run_mode != "video" and self.audio is  None:
-			self.shutdown(1, "\tThe audio file could not be found.")
-
 	def run_opensmile(self):
 		opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
 		self.f_summary = f"{opensmile_path}_summary_opensmile.csv"
@@ -94,7 +88,7 @@ class pipe:
 		if os.path.isfile(f_individual) and os.path.isfile(self.f_summary):
 			self.logger.info("\tOutput files already exist. Skipping OpenSmile...")
 		else:
-			self.logger.debug("\tStarting opensmile.")
+			self.logger.info(f"\tStarting opensmile for participant {self.participant_name}.")
 			smile = opensmile.Smile(
 				feature_set = opensmile.FeatureSet.eGeMAPSv02,
 				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
@@ -109,14 +103,14 @@ class pipe:
 			features = smile_summary.process_file(self.audio)
 			df = pd.DataFrame(features, columns=smile_summary.feature_names)
 			df.to_csv(self.f_summary, index=False)
-			self.logger.debug("\tOpensmile has completed successfully.")
+			self.logger.info("\tOpensmile has completed successfully.")
 
 	def run_whisper(self, model):
-		self.logger.info("Starting whisper.")
+		self.logger.info(f"\tStarting whisper for participant {self.participant_name}. This may take a while.")
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
-			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+			self.logger.debug("The log directory already exists. Existing logs will be overwritten.")
 		log_file = self.participant_name + "_whisper.log"
 		self.transcript = f"{self.participant_dir}\\{self.participant_name}_transcript.txt"
 		self.transcript_int = f"{self.participant_dir}\\{self.participant_name}_interviewer_transcript.txt"
@@ -127,51 +121,49 @@ class pipe:
 		else:
 			linux_audio = self.audio.replace('\\','/')
 			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
-			self.logger.debug("\tRunning whisper on cleaned participant file using {}.".format(command))
+			self.logger.debug("\tRunning whisper on participant file using {}.".format(command))
 			subprocess.check_output(command, shell=True)
 			command = f'ren {self.audio[:-4]}.txt {self.transcript_clean}'
 			subprocess.check_output(command, shell=True)
 			self.logger.info("\twhisper (participant) has finished successfully.")
-		
-		if os.path.isfile(self.transcript_int):
-			self.logger.info("Transcript for this interviewer already exists. Skipping transcription...")
-		else:
-			linux_audio = self.audio_interviewer.replace('\\','/')
-			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
-			self.logger.debug("\tRunning whisper on cleaned interviewer file using {}.".format(command))
-			subprocess.check_output(command, shell=True)
-			command = f'ren {self.audio_interviewer[:-4]}.txt {self.transcript_int_clean}'
-			subprocess.check_output(command, shell=True)
-			self.logger.info("\twhisper (interviewer) has finished successfully.")
+		if self.audio_interviewer is not None:
+			if os.path.isfile(self.transcript_int):
+				self.logger.info("Transcript for this interviewer already exists. Skipping transcription...")
+			else:
+				linux_audio = self.audio_interviewer.replace('\\','/')
+				command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
+				self.logger.debug("\tRunning whisper on interviewer file using {}.".format(command))
+				subprocess.check_output(command, shell=True)
+				command = f'ren {self.audio_interviewer[:-4]}.txt {self.transcript_int_clean}'
+				subprocess.check_output(command, shell=True)
+				self.logger.info("\twhisper (interviewer) has finished successfully.")
 		
 	def run_audio(self):
 		self.run_opensmile() 
-		self.run_whisper("base")
+		self.run_whisper(self.whisper_model)
 		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
 
 	def run_video(self):
-		openface_out = f'{self.video[:-10]}.csv'
+		openface_out = f'{self.participant_dir}\\{self.participant_name}.csv'
 		if os.path.isfile(openface_out):
 			self.logger.info("Output files already exist. Skipping OpenFace...")
 		else:
 			if self.audio is None:
 				self.logger.warning("No audio files found. Video analysis will run without silence detection.")
-			self.logger.info('Starting openface.')
+			self.logger.info(f'Starting openface for participant {self.participant_name}. This may take a while.')
 			self.log_dir = self.participant_dir + r'\logs'
 			log_file = self.participant_name + "_openface.log"
 			try:
 				os.mkdir(self.log_dir)
 			except OSError:
-				self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+				self.logger.debug("The log directory already exists. Existing logs will be overwritten.")
 			log_path = f"{self.log_dir}\\{log_file}"
-			if not os.path.isfile(self.video):
-				self.logger.error("No video file was found.")
 			command = f'{self.feat_detect} -f {self.video} -out_dir {self.participant_dir} -of {self.participant_name} > {log_path} 2>&1'
-			self.logger.info(f"Running openface with command {command}")
+			self.logger.debug(f"Running openface with command {command}")
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
 				self.logger.error(f'\tOpenface returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-				self.shutdown(1, "\tExecution cancelled due to error in openface.")
+				sys.exit(1)
 		with open(openface_out, 'r') as file:
 			reader = csv.reader(file)
 			rows = list(reader)
@@ -292,14 +284,6 @@ class pipe:
 					period_index += 2
 		return modified_rows
 
-	def delete_files(self, files):
-		for file in files:
-			try:
-				os.remove(file)
-				self.logger.debug(f"{file} deleted successfully")
-			except OSError as e:
-				self.logger.error(f"Error deleting {file}: {e}")
-
 	def preprocess_text(self, text, nlp):     
 		doc = nlp(text.lower())
 		tokens = [token.lemma_ for token in doc]
@@ -308,11 +292,12 @@ class pipe:
 	def run_nltk(self, output_file, lsa_output, csv_output):
 		# Open output file
 		if not(os.path.isfile(self.transcript) and os.path.isfile(self.transcript_int)):
-			self.shutdown(1, "Transcript could not be found. Do not rename or move it.", [])
+			self.logger.error("Transcript could not be found. Do not rename or move it.")
+			sys.exit(1)
 		file = self.transcript
 		with open(file, 'r') as f:
 			all_text = f.read()
-		self.logger.info("\tStarting semantic analysis.")
+		self.logger.info(f"\tStarting semantic analysis for participant {self.participant_name}.")
 		#LSA
 		nlp = spacy.load("en_core_web_sm")
 		sentences = [self.preprocess_text(sent.text,nlp) for sent in nlp(all_text).sents]
@@ -333,10 +318,14 @@ class pipe:
 		num_sent = len(sentences)
 		words_num_part = len(nltk.tokenize.word_tokenize(all_text))
 		file = self.transcript
-		with open(self.transcript_int, 'r') as f:
-			int_text = f.read()
-		words_num_int = len(nltk.tokenize.word_tokenize(int_text))
-		total_words = words_num_int + words_num_part
+		if self.audio_interviewer is not None:
+			with open(self.transcript_int, 'r') as f:
+				int_text = f.read()
+			words_num_int = len(nltk.tokenize.word_tokenize(int_text))
+			total_words = words_num_int + words_num_part
+			word_ratio = words_num_int/total_words
+		else:
+			word_ratio = "N/A"
 		neighbour_scores = []
 		for i in range(num_sent-1):
 			for j in range(num_sent -1):
@@ -409,7 +398,7 @@ class pipe:
 			head = [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
 			writer.writerow(head)
-			body = [avg_sentence_length] + overall_sentiment_list + [avg_sim_score] + [words_num_int/total_words]+ POS_val_list + DEP_val_list
+			body = [avg_sentence_length] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list + DEP_val_list
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
@@ -417,26 +406,20 @@ class pipe:
 	def clean_audio(self, stop_d):
 		self.output_name = self.participant_name + "_audio"
 		self.log_dir = self.participant_dir + r'\logs'
-		log_file = self.participant_name + "_ffmpeg.log"
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
-			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
-		log_path = f"{self.log_dir}\\{log_file}"
-		self.output_path = f"{self.participant_dir}\\{self.output_name}.mp3"
-		self.output_path_int = f'{self.output_path[:-4]}_int.mp3'
+			self.logger.debug("The log directory already exists. Existing logs will be overwritten.")
 		self.output_sr = f"{self.participant_dir}\\silenceremove.txt"
-		if os.path.isfile(self.output_path) and os.path.isfile(self.output_sr) and os.path.isfile(self.output_sr_int) and os.path.isfile(self.output_path_int):
-			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
-		elif self.audio == None:
+		if self.audio == None:
 			self.logger.warning("No audio files provided.")
 		else:
 			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
 			self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
-				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [])
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See {self.output_sr} for detailed error message.'.format(exit_c))
+				sys.exit(1)
 
 	def cut_video(self):
 		self.log_dir = self.participant_dir + r'\logs'
@@ -445,7 +428,7 @@ class pipe:
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
-			self.logger.warning("The log directory already exists. Existing logs will be overwritten.")
+			self.logger.debug("The log directory already exists. Existing logs will be overwritten.")
 		log_path = f"{self.log_dir}\\{log_file}"
 		if os.path.isfile(cropped_video):
 			self.logger.info("\tVideo has already been cropped. Skipping step and continuing...")
@@ -455,57 +438,51 @@ class pipe:
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
 				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-				self.shutdown(1, "\tExecution cancelled due to error in ffmpeg.", [])
+				sys.exit(1)
 		self.video = cropped_video
 
 	def run_pipe(self):
-		self.check_filepaths()
 		self.clean_audio(5)
 		if self.run_mode != "video":
 			self.run_audio()
 		if self.run_mode != "audio":
-			self.cut_video()
+			if self.no_cut == None:
+				print("Cutting video")
+				self.cut_video()
 			self.run_video()
 		self.write_own_summary()
 		return [self.summary, self.header_list, self.content_list, self.participant_name]
 
 class pipeParser:
 	def parse_args(self, args):
-		self.config_name = args.file
-		if not os.path.isfile(self.config_name):
-			raise Exception("Provided config file is not valid.")
-		with open(self.config_name, 'r') as file:
-			lines = file.readlines()
-			if len(lines) == 3:
-				interviews_path = lines[0].strip()
-				log_level = lines[1].strip()
-				run_mode = lines[2].strip()
-				if os.path.isdir(interviews_path):
-					print(f"Directory path '{interviews_path}' is valid.")
-					if args.overwrite:
-						clear_data(interviews_path)
-					all_args = []
-					video = None
-					audio = None
-					int_audio = None
-					for participant_dir in os.listdir(interviews_path):
-						participant_dir_path = os.path.join(interviews_path, participant_dir)
-						if not participant_dir.endswith(".csv"):
-							for f in os.listdir(participant_dir_path):
-								file = os.path.join(participant_dir_path, f)
-								if (f.endswith('2.mp4')):
-									audio = file
-								elif (f.endswith('1.mp4')):
-									int_audio = file
-								elif f.find('gvo') != -1 and f.endswith('.mp4'):
-									video = file
-							all_args.append([audio, video, log_level, run_mode, int_audio])
-					return len(all_args), all_args
-				else:
-					raise Exception(f"Directory path '{interviews_path}' is not valid.")
-			else:
-				raise Exception("Invalid configuration file format.")
-
+		if not os.path.isdir(args.interviews):
+			raise Exception(f"Folder {args.interviews} does not exist. Check that you provided the correct path.")
+		if args.overwrite:
+			clear_data(args.interviews)
+		all_args = []
+		video = None
+		audio = None
+		int_audio = None
+		for participant_dir in os.listdir(args.interviews):
+			participant_dir_path = os.path.join(args.interviews, participant_dir)
+			if not participant_dir.endswith(".csv"):
+				for f in os.listdir(participant_dir_path):
+					file = os.path.join(participant_dir_path, f)
+					if (f.endswith('2.mp4')):
+						audio = file
+					elif (f.endswith('1.mp4')):
+						int_audio = file
+					elif f.find('gvo') != -1 and f.endswith('.mp4'):
+						video = file
+				if args.mode != video and audio == None:
+					raise Exception(f"{participant_dir} does not have an audio file. Either remove this folder or provide a video file. See README for information on naming files.")
+				if args.mode != audio and video == None:
+					raise Exception(f"{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
+				if args.mode != video and int_audio == None:
+					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
+			all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.no_cut, args.whisper_model])
+		return len(all_args), all_args
+		
 def process_func(queue, my_pipe, args):
 	my_pipe.parse_args(args)
 	result = my_pipe.run_pipe()
@@ -525,7 +502,6 @@ def clear_data(path):
                         print(f"Deleting directory: {log_subdir_path}")
                         shutil.rmtree(log_subdir_path)
                 os.rmdir(log_dir_path)
-
             for filename in files:
                 file_path = os.path.join(root, filename)
                 if (not (filename.endswith('mp4'))):
@@ -555,8 +531,13 @@ def make_summary(queue):
 if __name__ == '__main__':
 	multiprocessing.freeze_support()
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--file", "-f", help = "The name of your file containing the arguments you want to use.", default=r"C:\Users\a1863615\INT\config_win.txt")
-	parser.add_argument("--overwrite", "-o", help = "Use this option if you want to run the pipeline again. This will overwrite old data!", action="store_true")
+	parser.add_argument("--path", help = " The full path to the folder containing your executables (this one, whisper, ffmpeg, and openface).", required=True)
+	parser.add_argument("--interviews", help = "The full path to the 'Interviews' folder containing all of your participant folders.", required=True)
+	parser.add_argument("--mode", help = "The mode you want to run it in. Options are audio, video and all", choices=["audio", "video", "all"], default="all")
+	parser.add_argument("--verbosity", help = "Level of logging. 1=ERROR, 2=WARNING, 3=INFO, 4=DEBUG", choices=['1','2','3','4'], default='3')
+	parser.add_argument("--overwrite", help = "Use this option if you want to run the pipeline again. This will overwrite old data!", action="store_true")
+	parser.add_argument("--no_cut", help = "Use this if your video file is not from a HIPAA zoom meeting. There must only be one person visible in the video.", action="store_true")
+	parser.add_argument("--whisper_model", help = "OPTIONAL: Specify the whisper model you want to use. Options: tiny, small, base, medium, large", choices=["tiny", "small", "base", "medium", "large"], default="base")
 	all_args = parser.parse_args()
 	pipeParser = pipeParser()
 	num_procs, parsed_all_args = pipeParser.parse_args(all_args)
