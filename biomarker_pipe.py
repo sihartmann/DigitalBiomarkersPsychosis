@@ -181,7 +181,7 @@ class pipe:
 			audio_off = 1
 		au_count = self.count_binary_aus(edited_rows, audio_off)
 		self.openface_out = f"{self.participant_dir}\\{self.participant_name}_openface_out.csv"
-		with open(f'{self.video[:-4]}.csv', 'w', newline='') as file:
+		with open(f'{self.participant_dir}\\{self.participant_name}.csv', 'w', newline='') as file:
 			writer = csv.writer(file)
 			for row in edited_rows:
 				writer.writerow(row)
@@ -219,7 +219,7 @@ class pipe:
 				reader = list(csv.reader(f))
 				self.header_list += (reader[0])
 				self.content_list += (reader[1])
-		with open(self.summary, 'w', newline='') as f:
+		with open(own_summary, 'w', newline='') as f:
 			writer = csv.writer(f)
 			writer.writerow(self.header_list)
 			writer.writerow(self.content_list)
@@ -414,7 +414,7 @@ class pipe:
 			os.mkdir(self.log_dir)
 		except OSError:
 			self.logger.debug("\tThe log directory already exists. Existing logs will be overwritten.")
-		self.output_sr = f"{self.participant_dir}\\silenceremove.txt"
+		self.output_sr = f"{self.participant_dir}\\{self.participant_name}_silences.txt"
 		if self.audio == None:
 			self.logger.warning("\tNo audio files provided.")
 		else:
