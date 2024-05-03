@@ -3,7 +3,7 @@
 ## DESCRIPTION
 This pipeline can be used to extract data from mental health interviews using HIPAA zoom recordings. It produces data about acoustic features such as pitch and volume. Semantic features are extracted from the generated audio transcript using POS tagging, dependency tagging, similarity scoring and sentiment scoring. Visual features such as gaze, head posititon and [action units](https://www.cs.cmu.edu/~face/facs.htm) are extracted also, and a summary file is generated per participant showing all relevant data. To enable easier comparisons between participants, a summary file for all participants is also generated.
 ## STEPS
-The pipeline includes running [openSMILE](https://audeering.github.io/opensmile/) for audio feature extraction and [Whisper](https://openai.com/index/whisper) for transcription. Semantic analysis is performed on participant audio using [The Natural Language Toolkit](https://www.nltk.org/) and [spaceCy](https://spacy.io/). Lastly, [OpenFace](https://cmusatyalab.github.io/openface/) is used to perform video analysis.
+The pipeline includes running [openSMILE](https://audeering.github.io/opensmile/) for audio feature extraction and [Whisper](https://openai.com/index/whisper) for transcription. Semantic analysis is performed on participant audio using [The Natural Language Toolkit](https://www.nltk.org/) and [spaCy](https://spacy.io/). Lastly, [OpenFace](https://cmusatyalab.github.io/openface/) is used to perform video analysis.
 
 
 ## INSTALLATION
