@@ -1,6 +1,0 @@
-Sentence,hello world .,this be fun .,hello brian .,I like hot soup .,"this be the last sentence , brian !"
-hello world .,1.0000000000000002,0.0,0.444002078863771,0.0,0.0
-this be fun .,0.0,1.0,0.0,0.0,0.38556272682173753
-hello brian .,0.444002078863771,0.0,1.0000000000000002,0.0,0.25634471975275164
-I like hot soup .,0.0,0.0,0.0,1.0000000000000002,0.0
-"this be the last sentence , brian !",0.0,0.38556272682173753,0.25634471975275164,0.0,1.0000000000000002
