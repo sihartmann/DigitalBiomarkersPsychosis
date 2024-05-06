@@ -531,29 +531,4 @@ def make_summary(queue):
 					break
 				else:
 					writer.writerow([item[3]] + item[2])
-	
-if __name__ == '__main__':
-	multiprocessing.freeze_support()
-	parser = argparse.ArgumentParser()
-	parser.add_argument("--interviews", help = "The full path to the 'Interviews' folder containing all of your participant folders. Required.", required=True)
-	parser.add_argument("--mode", help = "The mode you want to run it in. Options are audio, video and all. Default is all.", choices=["audio", "video", "all"], default="all")
-	parser.add_argument("--verbosity", help = "Level of logging. 1=ERROR, 2=WARNING, 3=INFO, 4=DEBUG. Default is 3.", choices=['1','2','3','4'], default='3')
-	parser.add_argument("--overwrite", help = "OPTIONAL: Use this option if you want to run the pipeline again. This will overwrite old data!", action="store_true")
-	parser.add_argument("--no_cut", help = "OPTIONAL: Use this if your video file is not from a HIPAA zoom meeting. There must only be one person visible in the video.", action="store_true")
-	parser.add_argument("--whisper_model", help = "OPTIONAL: Specify the whisper model you want to use. Options: tiny, small, base, medium, large", choices=["tiny", "small", "base", "medium", "large"], default="base")
-	all_args = parser.parse_args()
-	pipeParser = pipeParser()
-	num_procs, parsed_all_args = pipeParser.parse_args(all_args)
-	my_pipes = [pipe() for _ in range(num_procs)]
-	summary_queue = multiprocessing.Queue()
-	processes = []
-	summary_process = multiprocessing.Process(target=make_summary, args=(summary_queue,))
-	summary_process.start()
-	for i in range(num_procs):
-		process = multiprocessing.Process(target=process_func, args=(summary_queue, my_pipes[i], parsed_all_args[i]))
-		processes.append(process)
-		process.start()
-	for process in processes:
-		process.join()
-	summary_queue.put(None)
-	summary_process.join()
+					
