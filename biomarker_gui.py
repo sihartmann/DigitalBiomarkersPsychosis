@@ -15,6 +15,7 @@ class DigBioWindow(QtWidgets.QMainWindow):
         uic.loadUi('DigBio.ui', self) # Load the .ui file
         self.show() # Show the GUI
         self.setWindowTitle('DigBio 1.0')
+        self.setFixedSize(640, 240)
 
         # Set default values
         self.pathFolder.setText(os.path.expanduser("~"))
