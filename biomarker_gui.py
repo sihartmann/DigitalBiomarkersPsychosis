@@ -7,15 +7,44 @@ import sys
 import os
 from argparse import Namespace
 import multiprocessing
-from PyQt5 import QtWidgets, uic
+import logging
+from PyQt5 import QtWidgets, uic, QtCore
 from biomarker_pipe import pipeParser, pipe, process_func, make_summary
+
+class ConsolePanelHandler(logging.Handler):
+
+    def __init__(self, sig):
+        # super().__init__()
+        logging.Handler.__init__(self)
+        # logging.StreamHandler.__init__(self, stream)
+        self.stream = sig
+
+    def handle(self, record):
+        rv = self.filter(record)
+        if rv:
+            self.acquire()
+            try:
+                self.emit(record)
+            finally:
+                self.release()
+        return rv
+
+    def emit(self, record):
+        try:
+            self.stream.emit(self.format(record))
+        except RecursionError:
+            raise
+        except Exception:
+            self.handleError(record)
 class DigBioWindow(QtWidgets.QMainWindow):
+    sig = QtCore.pyqtSignal(str)
     def __init__(self):
         super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
         uic.loadUi('DigBio.ui', self) # Load the .ui file
         self.show() # Show the GUI
         self.setWindowTitle('DigBio 1.0')
-        self.setFixedSize(640, 240)
+
+        self.c = ConsolePanelHandler(self.sig)
 
         # Set default values
         self.pathFolder.setText(os.path.expanduser("~"))
@@ -27,6 +56,7 @@ class DigBioWindow(QtWidgets.QMainWindow):
         # Set GUI signals
         self.pathButton.clicked.connect(self.pathButtonClicked)
         self.startButton.clicked.connect(self.startButtonClicked)
+        self.sig.connect(self.appendDebug)
 
 ###############################################################################
 # Button clicked functions
@@ -43,7 +73,8 @@ class DigBioWindow(QtWidgets.QMainWindow):
                              verbosity=self.verbosityBox.currentText(),
                              overwrite=self.overwriteBox.isChecked(),
                              no_cut=self.nocutBox.isChecked(),
-                             whisper_model=self.whisperBox.currentText())
+                             whisper_model=self.whisperBox.currentText(),
+                             text_signal=self.c)
 
         pipeParserInt = pipeParser()
         num_procs, parsed_all_args = pipeParserInt.parse_args(all_args)
@@ -63,6 +94,10 @@ class DigBioWindow(QtWidgets.QMainWindow):
             process.join()
         summary_queue.put(None)
         summary_process.join()
+
+    @QtCore.pyqtSlot(str)
+    def appendDebug(self, string):
+        self.textEdit.append(string + '\n')
 
 
 if __name__ == '__main__':

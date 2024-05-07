@@ -35,6 +35,7 @@ class pipe:
 		self.run_mode = args[4]
 		self.no_cut = args[5]
 		self.whisper_model = args[6]
+		self.text_signal = args[7]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
@@ -53,6 +54,8 @@ class pipe:
 		self.logger = logging.getLogger('DigBio')
 		self.logger.addHandler(stderrhandler)
 		self.logger.addHandler(filehandler)
+		self.text_signal.setLevel(int(self.loglevel))
+		self.logger.addHandler(self.text_signal)
 		match self.loglevel:
 			case '1':
 				self.logger.setLevel(logging.ERROR)
@@ -484,7 +487,7 @@ class pipeParser:
 					raise Exception(f"\t{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
 				if args.mode != video and int_audio == None:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
-				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.no_cut, args.whisper_model])
+				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.no_cut, args.whisper_model, args.text_signal])
 		return len(all_args), all_args
 		
 def process_func(queue, my_pipe, args):
