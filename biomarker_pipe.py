@@ -2,7 +2,6 @@
 Pipeline for extraction of facial, acoustic and linguistic features from HIPAA Zoom recordings.
 @author: Oliver Williams
 """
-import argparse
 import logging
 import multiprocessing.process
 import os
@@ -21,6 +20,10 @@ import pandas as pd
 import string
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from argparse import Namespace
+import PyQt5
+from PyQt5.QtWidgets import *
+from PyQt5.uic import *
 
 VERSION = '1.0'
 
@@ -28,9 +31,9 @@ VERSION = '1.0'
 class pipe:
 	# Parse arguments and set up logging.
 	def parse_args(self, args):
-		self.audio = args[0]
-		self.video = args[1]
-		self.audio_interviewer = args[2]
+		self.audio = args[0].replace('/','\\')
+		self.video = args[1].replace('/', '\\')
+		self.audio_interviewer = args[2].replace('/', '\\')
 		self.loglevel = args[3]
 		self.run_mode = args[4]
 		self.no_cut = args[5]
@@ -531,4 +534,68 @@ def make_summary(queue):
 					break
 				else:
 					writer.writerow([item[3]] + item[2])
-					
+
+
+class DigBioWindow(QMainWindow):
+    def __init__(self):
+        super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
+        loadUi('DigBio.ui', self) # Load the .ui file
+        self.show() # Show the GUI
+        self.setWindowTitle('DigBio 1.0')
+        self.setFixedSize(1000, 300)
+
+        # Set default values
+        self.pathFolder.setText(os.path.expanduser("~"))
+        self.modeBox.setCurrentText("all")
+        self.verbosityBox.setCurrentText("3")
+        self.whisperBox.setCurrentText("base")
+        self.nocutBox.setChecked(False)
+
+        # Set GUI signals
+        self.pathButton.clicked.connect(self.pathButtonClicked)
+        self.startButton.clicked.connect(self.startButtonClicked)
+
+###############################################################################
+# Button clicked functions
+###############################################################################
+
+    def pathButtonClicked(self):
+        self.pathFolder.setText(str(QFileDialog.getExistingDirectory(
+            self,"Select Directory",self.pathFolder.text(),
+            QFileDialog.ShowDirsOnly)))
+
+    def startButtonClicked(self):
+        all_args = Namespace(interviews=self.pathFolder.text(), 
+                             mode=self.modeBox.currentText(),
+                             verbosity=self.verbosityBox.currentText(),
+                             overwrite=self.overwriteBox.isChecked(),
+                             no_cut=self.nocutBox.isChecked(),
+                             whisper_model=self.whisperBox.currentText())
+
+        pipeParserInt = pipeParser()
+        num_procs, parsed_all_args = pipeParserInt.parse_args(all_args)
+        my_pipes = [pipe() for _ in range(num_procs)]
+        summary_queue = multiprocessing.Queue()
+        processes = []
+        summary_process = multiprocessing.Process(target=make_summary, 
+                                                  args=(summary_queue,))
+        summary_process.start()
+        for i in range(num_procs):
+            process = multiprocessing.Process(target=process_func,
+                                              args=(summary_queue, my_pipes[i], 
+                                              parsed_all_args[i]))
+            processes.append(process)
+            process.start()
+        for process in processes:
+            process.join()
+        summary_queue.put(None)
+        summary_process.join()
+        print("INFO:\t All participants complete. You can close the windows now.")
+        self.close()
+
+
+if __name__ == '__main__':
+    multiprocessing.freeze_support()
+    app = QApplication(sys.argv)
+    window = DigBioWindow()
+    app.exec_()
