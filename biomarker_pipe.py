@@ -25,7 +25,7 @@ import PyQt5
 from PyQt5.QtWidgets import *
 from PyQt5.uic import *
 
-VERSION = '1.0'
+VERSION = '1.0 with GUI'
 
 ## Main processing class.
 class pipe:
@@ -87,6 +87,24 @@ class pipe:
 			if os.path.isdir(os.path.join(directory, entry)):
 				participants.append(entry)
 		return participants
+	
+	def clean_opensmile_audio(self):
+		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
+		log_file = self.participant_name + "_ffmpeg.log"
+		try:
+			os.mkdir(self.log_dir)
+		except OSError:
+			self.logger.info("The log directory already exists. Existing logs will be overwritten.")
+		if os.path.isfile(f"{self.opensmile_audio}") == False:
+			command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration=5" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
+			self.logger.debug("\tRunning ffmpeg on participant file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				sys.exit(1)
+			self.logger.info("\tffmpeg has finished successfully.")
+		else:
+			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
 
 	def run_opensmile(self):
 		opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
@@ -100,14 +118,14 @@ class pipe:
 				feature_set = opensmile.FeatureSet.eGeMAPSv02,
 				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 			)
-			features = smile.process_file(self.audio)
+			features = smile.process_file(self.opensmile_audio)
 			df = pd.DataFrame(features, columns=smile.feature_names)
 			df.to_csv(f_individual, index=False)
 
 			smile_summary = opensmile.Smile(
 				feature_set = opensmile.FeatureSet.eGeMAPSv02
 			)
-			features = smile_summary.process_file(self.audio)
+			features = smile_summary.process_file(self.opensmile_audio)
 			df = pd.DataFrame(features, columns=smile_summary.feature_names)
 			df.to_csv(self.f_summary, index=False)
 			self.logger.info("\tOpensmile has completed successfully.")
@@ -146,6 +164,7 @@ class pipe:
 				self.logger.info(f"\twhisper (interviewer) {self.participant_name} has finished successfully.")
 		
 	def run_audio(self):
+		self.clean_opensmile_audio()
 		self.run_opensmile() 
 		self.run_whisper(self.whisper_model)
 		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
@@ -330,7 +349,7 @@ class pipe:
 				int_text = f.read()
 			words_num_int = len(nltk.tokenize.word_tokenize(int_text))
 			total_words = words_num_int + words_num_part
-			word_ratio = words_num_int/total_words
+			word_ratio = words_num_part/total_words
 		else:
 			word_ratio = "N/A"
 		neighbour_scores = []
@@ -410,7 +429,7 @@ class pipe:
 			
 		self.logger.info("\tSemantic analysis completed.")
 
-	def clean_audio(self, stop_d):
+	def silence_detect(self, stop_d):
 		self.output_name = self.participant_name + "_audio"
 		self.log_dir = self.participant_dir + r'\logs'
 		try:
@@ -449,7 +468,7 @@ class pipe:
 		self.video = cropped_video
 
 	def run_pipe(self):
-		self.clean_audio(5)
+		self.silence_detect(5)
 		if self.run_mode != "video":
 			self.run_audio()
 		if self.run_mode != "audio":
