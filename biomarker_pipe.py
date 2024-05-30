@@ -1,6 +1,6 @@
 """
 Pipeline for extraction of facial, acoustic and linguistic features from HIPAA Zoom recordings.
-@author: Oliver Williams
+@author: Oliver Williams, Simon Hartmann
 """
 import logging
 import multiprocessing.process
@@ -29,6 +29,7 @@ VERSION = '1.0 with GUI'
 
 ## Main processing class.
 class pipe:
+
 	# Parse arguments and set up logging.
 	def parse_args(self, args):
 		self.audio = args[0].replace('/','\\')
@@ -81,6 +82,7 @@ class pipe:
 			self.logger.error("\tMissing dependency: openface.")
 			sys.exit(1)
 
+	# Parse through Interviews directory and return list of all participant names.
 	def get_participants(self, directory):
 		participants = list()
 		for entry in os.listdir(directory):
@@ -88,6 +90,7 @@ class pipe:
 				participants.append(entry)
 		return participants
 	
+	# Cut silences from audio using ffmpeg. This improves openSMILE results.
 	def clean_opensmile_audio(self):
 		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
 		log_file = self.participant_name + "_ffmpeg.log"
@@ -106,6 +109,7 @@ class pipe:
 		else:
 			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
 
+	# Run openSMILE, generates both detailed and summary output.
 	def run_opensmile(self):
 		opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
 		self.f_summary = f"{opensmile_path}_summary_opensmile.csv"
@@ -130,6 +134,7 @@ class pipe:
 			df.to_csv(self.f_summary, index=False)
 			self.logger.info("\tOpensmile has completed successfully.")
 
+	# Transcribe both interviewer and participant audio using specified model.
 	def run_whisper(self, model):
 		self.logger.info(f"\tStarting whisper for participant {self.participant_name}. This may take a while.")
 		try:
@@ -162,13 +167,15 @@ class pipe:
 				command = f'ren {self.audio_interviewer[:-4]}.txt {self.transcript_int_clean}'
 				subprocess.check_output(command, shell=True)
 				self.logger.info(f"\twhisper (interviewer) {self.participant_name} has finished successfully.")
-		
+	
+	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.
 	def run_audio(self):
 		self.clean_opensmile_audio()
 		self.run_opensmile() 
 		self.run_whisper(self.whisper_model)
 		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
 
+	# Video domain of pipeline: OpenFace (including downstream analysis).
 	def run_video(self):
 		openface_out = f'{self.participant_dir}\\{self.participant_name}.csv'
 		if os.path.isfile(openface_out):
@@ -220,7 +227,7 @@ class pipe:
 						"AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c"])
 				writer.writerow(au_count[0])
 
-
+	# Participant sumary file of all results generated.
 	def write_own_summary(self):
 		own_summary = f"{self.participant_dir}\\{self.participant_name}_summary.csv"
 		if os.path.isfile(own_summary):
@@ -246,6 +253,7 @@ class pipe:
 			writer.writerow(self.header_list)
 			writer.writerow(self.content_list)
 
+	# Create list of silent periods from participant audio. Used for OpenFace analysis.
 	def parse_silence_file(self, file_path):
 		silence_list = []
 		with open(file_path, 'r') as file:
@@ -258,6 +266,7 @@ class pipe:
 						silence_list += [start,end]
 		return silence_list
 
+	# Parse OpenFace output file and count activation of all binary action units. Counts for silent, non-silent and all periods.
 	def count_binary_aus(self, rows, audio_off):
 		au_count = [0]*18
 		au_count_sil = [0]*18
@@ -283,6 +292,7 @@ class pipe:
 					cts[i] /= self.video_len
 		return return_cts
 
+	# Helper function fo AU count. Updates each frame with participant speech value (0 for silent, 1 for speech).
 	def check_silence_periods(self, silence_list, rows):
 		current_start = silence_list[0]
 		current_end = silence_list[1]
@@ -290,11 +300,9 @@ class pipe:
 		modified_rows = []
 		rows[0].extend(["participant speech"])
 		modified_rows.append(rows[0])
-
 		for row in rows[1:]:
 			timestamp = float(row[2])
 			end_flag = False
-
 			if current_start <= timestamp < current_end and end_flag is not True:
 				silence_flag = 0
 			else:
@@ -310,13 +318,14 @@ class pipe:
 					period_index += 2
 		return modified_rows
 
+	# Convert all text to lower case.
 	def preprocess_text(self, text, nlp):     
 		doc = nlp(text.lower())
 		tokens = [token.lemma_ for token in doc]
 		return ' '.join(tokens)
 	
+	# Smenatic analysis usng spaCy, nltk, ...
 	def run_nltk(self, output_file, lsa_output, csv_output):
-		# Open output file
 		if not(os.path.isfile(self.transcript) and os.path.isfile(self.transcript_int)):
 			self.logger.error("\tTranscript could not be found. Do not rename or move it.")
 			sys.exit(1)
@@ -324,13 +333,15 @@ class pipe:
 		with open(file, 'r') as f:
 			all_text = f.read()
 		self.logger.info(f"\tStarting semantic analysis for participant {self.participant_name}.")
-		#LSA
+
+		# Text to lowercase conversion
 		nlp = spacy.load("en_core_web_sm")
 		sentences = [self.preprocess_text(sent.text,nlp) for sent in nlp(all_text).sents]
+
+		# lsa analysis
 		vectorizer = TfidfVectorizer()
 		X = vectorizer.fit_transform(sentences)
 		similarity_matrix = cosine_similarity(X)
-
 		with open(lsa_output, "w", newline="") as f:
 			writer = csv.writer(f)
 			head = ["Sentence"] + [sentence for sentence in sentences]
@@ -339,7 +350,7 @@ class pipe:
 				row = [sentence] + [similarity_matrix[i][j] for j in range(len(sentences))]
 				writer.writerow(row)
 		
-		# Fragment into sentences
+		# Fragment into sentences, calculate part/interviewer speech ratio.
 		sentences = nltk.tokenize.sent_tokenize(all_text)
 		num_sent = len(sentences)
 		words_num_part = len(nltk.tokenize.word_tokenize(all_text))
@@ -380,6 +391,7 @@ class pipe:
 		expanded_text = [contractions.fix(word) for word in words]
 
 		merged_text = ' '.join(expanded_text)
+
 		# Do POS and dependency tagging.
 		nlp = spacy.load('en_core_web_sm')
 		doc = nlp(merged_text)
@@ -429,6 +441,7 @@ class pipe:
 			
 		self.logger.info("\tSemantic analysis completed.")
 
+	# Output silent periods from participant audio to file (used for OpenFace analysis).
 	def silence_detect(self, stop_d):
 		self.output_name = self.participant_name + "_audio"
 		self.log_dir = self.participant_dir + r'\logs'
@@ -447,6 +460,7 @@ class pipe:
 				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See {self.output_sr} for detailed error message.'.format(exit_c))
 				sys.exit(1)
 
+	# Crop the video. This removes the interviewer's face so that OpenFace reliably works on the participant only.
 	def cut_video(self):
 		self.log_dir = self.participant_dir + r'\logs'
 		log_file = self.participant_name + "_ffmpeg.log"
@@ -467,6 +481,7 @@ class pipe:
 				sys.exit(1)
 		self.video = cropped_video
 
+	# Run either/both audio or/and video domains, acll summary generation function.
 	def run_pipe(self):
 		self.silence_detect(5)
 		if self.run_mode != "video":
@@ -479,6 +494,7 @@ class pipe:
 		self.logger.info(f"\tPipeline completed for {self.participant_name}.")
 		return [self.summary, self.header_list, self.content_list, self.participant_name]
 
+## Class used only for initial parsing. Splits input up so it can be divided among processes.
 class pipeParser:
 	def parse_args(self, args):
 		if not os.path.isdir(args.interviews):
@@ -508,12 +524,14 @@ class pipeParser:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
 				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.no_cut, args.whisper_model])
 		return len(all_args), all_args
-		
+
+# Function executed by each process, returns summary list, added to shared queue.
 def process_func(queue, my_pipe, args):
 	my_pipe.parse_args(args)
 	result = my_pipe.run_pipe()
 	queue.put(result)
 
+# If 'overwrite' functionality specified, deletes all non-necessary files.
 def clear_data(path):
     try:
         for root, dirs, files in os.walk(path):
@@ -535,6 +553,7 @@ def clear_data(path):
     except Exception as e:
         print(f"An error occurred: {e}")\
 
+# Function only executed by 'reader' process, gets items from queue as long as pipeline is not over, writes out to file.
 def make_summary(queue):
 		while True:
 			first = queue.get()
@@ -554,7 +573,7 @@ def make_summary(queue):
 				else:
 					writer.writerow([item[3]] + item[2])
 
-
+## GUI class.
 class DigBioWindow(QMainWindow):
     def __init__(self):
         super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
@@ -573,10 +592,6 @@ class DigBioWindow(QMainWindow):
         # Set GUI signals
         self.pathButton.clicked.connect(self.pathButtonClicked)
         self.startButton.clicked.connect(self.startButtonClicked)
-
-###############################################################################
-# Button clicked functions
-###############################################################################
 
     def pathButtonClicked(self):
         self.pathFolder.setText(str(QFileDialog.getExistingDirectory(
@@ -598,11 +613,11 @@ class DigBioWindow(QMainWindow):
         processes = []
         summary_process = multiprocessing.Process(target=make_summary, 
                                                   args=(summary_queue,))
-        summary_process.start()
+        summary_process.start() # Reader process
         for i in range(num_procs):
             process = multiprocessing.Process(target=process_func,
                                               args=(summary_queue, my_pipes[i], 
-                                              parsed_all_args[i]))
+                                              parsed_all_args[i])) # Writer processes
             processes.append(process)
             process.start()
         for process in processes:
