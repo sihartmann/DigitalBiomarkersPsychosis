@@ -7,15 +7,17 @@ import sys
 import os
 from argparse import Namespace
 import multiprocessing
-from PyQt5 import QtWidgets, uic
+import PyQt5
+from PyQt5.QtWidgets import *
+from PyQt5.uic import *
 from biomarker_pipe import pipeParser, pipe, process_func, make_summary
-class DigBioWindow(QtWidgets.QMainWindow):
+class DigBioWindow(QMainWindow):
     def __init__(self):
         super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
-        uic.loadUi('DigBio.ui', self) # Load the .ui file
+        loadUi('DigBio.ui', self) # Load the .ui file
         self.show() # Show the GUI
         self.setWindowTitle('DigBio 1.0')
-        self.setFixedSize(640, 240)
+        self.setFixedSize(1000, 300)
 
         # Set default values
         self.pathFolder.setText(os.path.expanduser("~"))
@@ -33,9 +35,10 @@ class DigBioWindow(QtWidgets.QMainWindow):
 ###############################################################################
 
     def pathButtonClicked(self):
-        self.pathFolder.setText(str(QtWidgets.QFileDialog.getExistingDirectory(
+        self.pathFolder.setText(str(QFileDialog.getExistingDirectory(
             self,"Select Directory",self.pathFolder.text(),
-            QtWidgets.QFileDialog.ShowDirsOnly)))
+            QFileDialog.ShowDirsOnly)))
+        self.close()
 
     def startButtonClicked(self):
         all_args = Namespace(interviews=self.pathFolder.text(), 
@@ -66,6 +69,6 @@ class DigBioWindow(QtWidgets.QMainWindow):
 
 
 if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
+    app = QApplication(sys.argv)
     window = DigBioWindow()
     app.exec_()
