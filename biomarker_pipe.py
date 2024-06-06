@@ -24,6 +24,12 @@ from argparse import Namespace
 import PyQt5
 from PyQt5.QtWidgets import *
 from PyQt5.uic import *
+import cv2
+import numpy as np
+from ffpyplayer.player import MediaPlayer
+import plotly.express as px
+import io 
+from PIL import Image
 
 VERSION = '1.0 with GUI'
 
@@ -573,6 +579,66 @@ def make_summary(queue):
 				else:
 					writer.writerow([item[3]] + item[2])
 
+def replay_video(path):
+		
+		subject = os.path.basename(path)
+		df = load_features(path, subject)
+		video = cv2.VideoCapture(f"{path}/{subject}_video.mp4")
+		fps = video.get(cv2.CAP_PROP_FPS)
+		sleep_ms = int(np.round((1/fps)*1000))
+		count = 1
+		#player = MediaPlayer(f"{path}/{subject}_video.mp4")
+		while True:
+			grabbed, frame=video.read()
+			# Resize the image frames 
+			resize = cv2.resize(frame, (900, 1100))
+			fig = create_chart(count, df, subject, path)
+			fig = fig[:,:,0:3]
+			rows,cols,channels = fig.shape
+			overlay=cv2.addWeighted(resize[0:0+rows, 0:0+cols],0.5,fig,0.5,0)
+			resize[0:0+rows, 0:0+cols ] = overlay
+			count += 1
+			#audio_frame, val = player.get_frame()
+			if not grabbed:
+				print("End of video")
+				break
+			if cv2.waitKey(sleep_ms) & 0xFF == ord("q"):
+				break
+			cv2.imshow("Video", resize)
+			#if val != 'eof' and audio_frame is not None:
+				#audio
+				#img, t = audio_frame
+		video.release()
+		cv2.destroyAllWindows()
+
+def load_features(path, subject):
+
+	df_face = pd.read_csv(f"{path}/{subject}.csv")
+	df_face = df_face[["frame"," AU02_c"," AU09_c"," AU10_c"," AU28_c"," AU45_c"]]
+	for column in [" AU02_c"," AU09_c"," AU10_c"," AU28_c"," AU45_c"]:
+		tmp = np.diff(df_face[column])
+		tmp = tmp > 0
+		tmp = np.append(np.zeros(1), tmp.astype(int))
+		df_face[column] = np.convolve(tmp, np.ones(260)/260, mode='same')*26*6
+	return(df_face)
+
+def create_chart(count, df, subject, path):
+	df = df[df["frame"] == count]
+	df = df[[" AU02_c"," AU09_c"," AU10_c"," AU28_c"," AU45_c"]]
+	df_plot = pd.DataFrame(dict(
+    r=df.iloc[0],
+    theta=["Outer brow raiser","Nose wrinkler","Upper lip raiser","Lip suck rate","Blink rate"]))
+	fig = px.line_polar(df_plot, r='r', theta='theta', line_close=True)
+	fig.update_polars(
+    radialaxis_tickvals=[1, 2, 3, 4, 5],
+    radialaxis_tickmode="array",
+    radialaxis_range=[0, 5])  # Set the range of radial axis to always go up to 5
+	fig.update_traces(fill='toself')
+	fig_bytes = fig.to_image(format="png",  width=400, height=400, scale=0.75)
+	buf = io.BytesIO(fig_bytes)
+	img = Image.open(buf)
+	return np.asarray(img)
+
 ## GUI class.
 class DigBioWindow(QMainWindow):
     def __init__(self):
@@ -591,12 +657,19 @@ class DigBioWindow(QMainWindow):
 
         # Set GUI signals
         self.pathButton.clicked.connect(self.pathButtonClicked)
+        self.replayButton.clicked.connect(self.replayButtonClicked)
         self.startButton.clicked.connect(self.startButtonClicked)
 
     def pathButtonClicked(self):
         self.pathFolder.setText(str(QFileDialog.getExistingDirectory(
             self,"Select Directory",self.pathFolder.text(),
             QFileDialog.ShowDirsOnly)))
+		
+    def replayButtonClicked(self):
+        subject_path = str(QFileDialog.getExistingDirectory(
+            self,"Select processed subject",self.pathFolder.text(),
+            QFileDialog.ShowDirsOnly))
+        replay_video(subject_path)
 
     def startButtonClicked(self):
         all_args = Namespace(interviews=self.pathFolder.text(), 
