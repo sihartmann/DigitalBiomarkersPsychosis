@@ -1,0 +1,206 @@
+Name,Description,Group
+ID,Subject ID (extracted from folder name),Subject information
+avg sentence len,Average sentence length in speech of participant,Speech information
+neg sent,Average negative sentiment in speech of participant,Sentiment scores
+neu sent,Average netural sentiment in speech of participant,Sentiment scores
+pos sent,Average positive sentiment in speech of participant,Sentiment scores
+comp sent,Average complete sentiment in speech of participant,Sentiment scores
+avg sim score,Average semantic similarity between neighboring sentences in speech of participant,Semantic coherence
+part_words/total_words,Proportion of spoken words by participant in relation to all spoken words by interviewer and participant,Speech information
+ADJ,Total number of adjectives used by participant,Part-of-speech tagging
+ADP,Total number of adposition used by participant,Part-of-speech tagging
+ADV,Total number of adverbs used by participant,Part-of-speech tagging
+AUX,Total number of auxiliary used by participant,Part-of-speech tagging
+CONJ,Total number of conjunction used by participant,Part-of-speech tagging
+CCONJ,Total number of coordinating conjunction used by participant,Part-of-speech tagging
+DET,Total number of determiner/article used by participant,Part-of-speech tagging
+INTJ,Total number of interjection used by participant,Part-of-speech tagging
+NOUN,Total number of noun used by participant,Part-of-speech tagging
+NUM,Total number of numeral used by participant,Part-of-speech tagging
+PART,Total number of particle used by participant,Part-of-speech tagging
+PROUN,Total number of pronoun used by participant,Part-of-speech tagging
+PROPN,Total number of proper noun used by participant,Part-of-speech tagging
+PUNCT,Total number of punctuation used by participant,Part-of-speech tagging
+SCONJ,Total number of subordinating conjunction used by participant,Part-of-speech tagging
+SYM,Total number of symbols used by participant,Part-of-speech tagging
+X,Total number of other used by participant,Part-of-speech tagging
+ROOT,Total number of roots used by participant,Part-of-speech tagging
+acl,Total number of clausal modifier of nount (adjectival clause) used by participant,Syntactic dependency tagging
+acomp,Total number of adjectival complement used by participant,Syntactic dependency tagging
+advcl,Total number of adverbial claus modifier used by participant,Syntactic dependency tagging
+advmod,Total number of adverbial modifier used by participant,Syntactic dependency tagging
+agent,Total number of agent used by participant,Syntactic dependency tagging
+amod,Total number of adjectival modifier used by participant,Syntactic dependency tagging
+appos,Total number of appositional modifier used by participant,Syntactic dependency tagging
+attr,Total number of attribute used by participant,Syntactic dependency tagging
+aux,Total number of auxiliary used by participant,Syntactic dependency tagging
+auxpass,Total number of auxiliary (passive) used by participant,Syntactic dependency tagging
+case,Total number of case marking used by participant,Syntactic dependency tagging
+cc,Total number of coordinating conjunction used by participant,Syntactic dependency tagging
+ccomp,Total number of clausal complement used by participant,Syntactic dependency tagging
+compound,Total number of compound used by participant,Syntactic dependency tagging
+conj,Total number of conjunct used by participant,Syntactic dependency tagging
+cop,Total number of copula used by participant,Syntactic dependency tagging
+csubj,Total number of clausal subject used by participant,Syntactic dependency tagging
+csubjpass,Total number of clausal subject (passive) used by participant,Syntactic dependency tagging
+dative,Total number of dative used by participant,Syntactic dependency tagging
+dep,Total number of unclasified dependent used by participant,Syntactic dependency tagging
+det,Total number of determiner used by participant,Syntactic dependency tagging
+dobj,Total number of direct object used by participant,Syntactic dependency tagging
+expl,Total number of expletive used by participant,Syntactic dependency tagging
+intj,Total number of interjection used by participant,Syntactic dependency tagging
+mark,Total number of marker used by participant,Syntactic dependency tagging
+meta,Total number of meta modifier used by participant,Syntactic dependency tagging
+neg,Total number of negation modifier used by participant,Syntactic dependency tagging
+nmod,Total number of modifier of nominal used by participant,Syntactic dependency tagging
+npadvmod,Total number of noun phrase as adverbial modifier used by participant,Syntactic dependency tagging
+nsubj,Total number of nominal subject used by participant,Syntactic dependency tagging
+nsubjpass,Total number of nominal subject (passive) used by participant,Syntactic dependency tagging
+nummod,Total number of numeric modifier used by participant,Syntactic dependency tagging
+oprd,Total number of object predicate used by participant,Syntactic dependency tagging
+parataxis,Total number of parataxis used by participant,Syntactic dependency tagging
+punct,Total number of punctuation used by participant,Syntactic dependency tagging
+quantmod,Total number of modifier of quantifier used by participant,Syntactic dependency tagging
+relcl,Total number of relative clause modifier used by participant,Syntactic dependency tagging
+F0semitoneFrom27.5Hz_sma3nz_amean,Pitch (logarithmic F0 on a semitone frequency scale) - arithmetic mean,Frequency
+F0semitoneFrom27.5Hz_sma3nz_stddevNorm,Pitch (logarithmic F0 on a semitone frequency scale) - standard deviation,Frequency
+F0semitoneFrom27.5Hz_sma3nz_percentile20.0,Pitch (logarithmic F0 on a semitone frequency scale) - 20-th percentile,Frequency
+F0semitoneFrom27.5Hz_sma3nz_percentile50.0,Pitch (logarithmic F0 on a semitone frequency scale) - 50-th percentile,Frequency
+F0semitoneFrom27.5Hz_sma3nz_percentile80.0,Pitch (logarithmic F0 on a semitone frequency scale) - 80-th percentile,Frequency
+F0semitoneFrom27.5Hz_sma3nz_pctlrange0-2,Pitch (logarithmic F0 on a semitone frequency scale) - range of 20-th to 80-th percentile,Frequency
+F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope,Pitch (logarithmic F0 on a semitone frequency scale) - mean of the slope of rising signal parts,Frequency
+F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope,Pitch (logarithmic F0 on a semitone frequency scale) - standard deviation of the slope of rising signal parts,Frequency
+F0semitoneFrom27.5Hz_sma3nz_meanFallingSlope,Pitch (logarithmic F0 on a semitone frequency scale) - mean of the slope of falling signal parts,Frequency
+F0semitoneFrom27.5Hz_sma3nz_stddevFallingSlope,Pitch (logarithmic F0 on a semitone frequency scale) - standard deviation of the slope of falling signal parts,Frequency
+loudness_sma3_amean,Loudness (estimate of perceived signal intensity) - arithmetic mean,Energy/amplitude
+loudness_sma3_stddevNorm,Loudness (estimate of perceived signal intensity) - standard deviation,Energy/amplitude
+loudness_sma3_percentile20.0,Loudness (estimate of perceived signal intensity) - 20-th percentile,Energy/amplitude
+loudness_sma3_percentile50.0,Loudness (estimate of perceived signal intensity) - 50-th percentile,Energy/amplitude
+loudness_sma3_percentile80.0,Loudness (estimate of perceived signal intensity) - 80-th percentile,Energy/amplitude
+loudness_sma3_pctlrange0-2,Loudness (estimate of perceived signal intensity) - range of 20-th to 80-th percentile,Energy/amplitude
+loudness_sma3_meanRisingSlope,Loudness (estimate of perceived signal intensity) - mean of the slope of rising signal parts,Energy/amplitude
+loudness_sma3_stddevRisingSlope,Loudness (estimate of perceived signal intensity) - standard deviation of the slope of rising signal parts,Energy/amplitude
+loudness_sma3_meanFallingSlope,Loudness (estimate of perceived signal intensity) - mean of the slope of falling signal parts,Energy/amplitude
+loudness_sma3_stddevFallingSlope,Loudness (estimate of perceived signal intensity) - standard deviation of the slope of falling signal parts,Energy/amplitude
+spectralFlux_sma3_amean,Spectral Flux (difference of the spectra of two consecutive frames) - arithmetic average,Spectral (balance/shape/dynamics)
+spectralFlux_sma3_stddevNorm,Spectral Flux (difference of the spectra of two consecutive frames) - standard deviation,Spectral (balance/shape/dynamics)
+mfcc1_sma3_amean,MFCC 1 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average,Spectral (balance/shape/dynamics)
+mfcc1_sma3_stddevNorm,MFCC 1 (Mel-Frequency Cepstral Coefficient 1) - standard deviation,Spectral (balance/shape/dynamics)
+mfcc2_sma3_amean,MFCC 2 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average,Spectral (balance/shape/dynamics)
+mfcc2_sma3_stddevNorm,MFCC 2 (Mel-Frequency Cepstral Coefficient 1) - standard deviation,Spectral (balance/shape/dynamics)
+mfcc3_sma3_amean,MFCC 3 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average,Spectral (balance/shape/dynamics)
+mfcc3_sma3_stddevNorm,MFCC 3 (Mel-Frequency Cepstral Coefficient 1) - standard deviation,Spectral (balance/shape/dynamics)
+mfcc4_sma3_amean,MFCC 4 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average,Spectral (balance/shape/dynamics)
+mfcc4_sma3_stddevNorm,MFCC 4 (Mel-Frequency Cepstral Coefficient 1) - standard deviation,Spectral (balance/shape/dynamics)
+jitterLocal_sma3nz_amean,Jitter (deviations in individual consecutive F0 period lengths) - arithmetic average,Frequency
+jitterLocal_sma3nz_stddevNorm,Jitter (deviations in individual consecutive F0 period lengths) - standard deviation,Frequency
+shimmerLocaldB_sma3nz_amean,Shimmer (difference of the peak amplitudes of consecutive F0 periods) - arithmetic average,Energy/amplitude
+shimmerLocaldB_sma3nz_stddevNorm,Shimmer (difference of the peak amplitudes of consecutive F0 periods) - standard deviation,Energy/amplitude
+HNRdBACF_sma3nz_amean,Harmonics-to-Noise Ratio (relation of en- ergy in harmonic components to energy in noise- like components) - arithmetic average,Energy/amplitude
+HNRdBACF_sma3nz_stddevNorm,Harmonics-to-Noise Ratio (relation of en- ergy in harmonic components to energy in noise- like components) - standard deviation,Energy/amplitude
+logRelF0-H1-H2_sma3nz_amean,Harmonic difference H1-H2 (ratio of energy of the first F0 harmonic (H1) to the energy of the second F0 harmonic (H2)) - arithmetic average,Spectral (balance/shape/dynamics)
+logRelF0-H1-H2_sma3nz_stddevNorm,Harmonic difference H1-H2 (ratio of energy of the first F0 harmonic (H1) to the energy of the second F0 harmonic (H2)) - standard deviation,Spectral (balance/shape/dynamics)
+logRelF0-H1-A3_sma3nz_amean,Harmonic difference H1-A3 (ratio of energy of the first F0 harmonic (H1) to the energy of the highest harmonic in the third formant range (A3)) - arithmetic average,Spectral (balance/shape/dynamics)
+logRelF0-H1-A3_sma3nz_stddevNorm,Harmonic difference H1-A3 (ratio of energy of the first F0 harmonic (H1) to the energy of the highest harmonic in the third formant range (A3)) - standard deviation,Spectral (balance/shape/dynamics)
+F1frequency_sma3nz_amean,Formant 1 frequency (center frequency of first formant) - arithmetic average,Frequency
+F1frequency_sma3nz_stddevNorm,Formant 1 frequency (center frequency of first formant) - standard deviation,Frequency
+F1bandwidth_sma3nz_amean,Formant 1  (bandwidth of first formant) - arithmetic average,Frequency
+F1bandwidth_sma3nz_stddevNorm,Formant 1  (bandwidth of first formant) - standard deviation,Frequency
+F1amplitudeLogRelF0_sma3nz_amean,Formant 1 relative energy (the ratio of the energy of the spectral harmonic peak at the first centre frequency to the energy of the spectral peak at F0) - arithmetic average,Spectral (balance/shape/dynamics)
+F1amplitudeLogRelF0_sma3nz_stddevNorm,Formant 1 relative energy (the ratio of the energy of the spectral harmonic peak at the first centre frequency to the energy of the spectral peak at F0) - standard deviation,Spectral (balance/shape/dynamics)
+F2frequency_sma3nz_amean,Formant 2 frequency (center frequency of second formant) - arithmetic average,Frequency
+F2frequency_sma3nz_stddevNorm,Formant 2 frequency (center frequency of second formant) - standard deviation,Frequency
+F2bandwidth_sma3nz_amean,Formant 2  (bandwidth of second formant) - arithmetic average,Frequency
+F2bandwidth_sma3nz_stddevNorm,Formant 2  (bandwidth of second formant) - standard deviation,Frequency
+F2amplitudeLogRelF0_sma3nz_amean,Formant 2 relative energy (the ratio of the energy of the spectral harmonic peak at the second centre frequency to the energy of the spectral peak at F0) - arithmetic average,Spectral (balance/shape/dynamics)
+F2amplitudeLogRelF0_sma3nz_stddevNorm,Formant 2 relative energy (the ratio of the energy of the spectral harmonic peak at the second centre frequency to the energy of the spectral peak at F0) - standard deviation,Spectral (balance/shape/dynamics)
+F3frequency_sma3nz_amean,Formant 3 frequency (center frequency of third formant) - arithmetic average,Frequency
+F3frequency_sma3nz_stddevNorm,Formant 3 frequency (center frequency of third formant) - standard deviation,Frequency
+F3bandwidth_sma3nz_amean,Formant 3  (bandwidth of third formant) - arithmetic average,Frequency
+F3bandwidth_sma3nz_stddevNorm,Formant 3  (bandwidth of third formant) - standard deviation,Frequency
+F3amplitudeLogRelF0_sma3nz_amean,Formant 3 relative energy (the ratio of the energy of the spectral harmonic peak at the third centre frequency to the energy of the spectral peak at F0) - arithmetic average,Spectral (balance/shape/dynamics)
+F3amplitudeLogRelF0_sma3nz_stddevNorm,Formant 3 relative energy (the ratio of the energy of the spectral harmonic peak at the third centre frequency to the energy of the spectral peak at F0) - standard deviation,Spectral (balance/shape/dynamics)
+alphaRatioV_sma3nz_amean,Alpha ratio (ratio of the summed energy from 50–1000Hz and 1–5kHz) - arithmetic average,Spectral (balance/shape/dynamics)
+alphaRatioV_sma3nz_stddevNorm,Alpha ratio (ratio of the summed energy from 50–1000Hz and 1–5kHz) - standard deviation,Spectral (balance/shape/dynamics)
+hammarbergIndexV_sma3nz_amean,Hammarberg Index (ratio of the strongest energy peak in the 0–2kHz region to the strongest peak in the 2–5kHz region) - arithmetic average,Spectral (balance/shape/dynamics)
+hammarbergIndexV_sma3nz_stddevNorm,Hammarberg Index (ratio of the strongest energy peak in the 0–2kHz region to the strongest peak in the 2–5kHz region) - standard deviation,Spectral (balance/shape/dynamics)
+slopeV0-500_sma3nz_amean,Spectral slope 0-500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average,Spectral (balance/shape/dynamics)
+slopeV0-500_sma3nz_stddevNorm,Spectral slope 0-500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - standard deviation,Spectral (balance/shape/dynamics)
+slopeV500-1500_sma3nz_amean,Spectral slope 500-1500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average,Spectral (balance/shape/dynamics)
+slopeV500-1500_sma3nz_stddevNorm,Spectral slope 500-1500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - standard deviation,Spectral (balance/shape/dynamics)
+spectralFluxV_sma3nz_amean,Spectral Flux (difference of the spectra of two consecutive frames) - arithmetic average (VOICED),Spectral (balance/shape/dynamics)
+spectralFluxV_sma3nz_stddevNorm,Spectral Flux (difference of the spectra of two consecutive frames) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
+mfcc1V_sma3nz_amean,MFCC 1 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average (VOICED),Spectral (balance/shape/dynamics)
+mfcc1V_sma3nz_stddevNorm,MFCC 1 (Mel-Frequency Cepstral Coefficient 1) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
+mfcc2V_sma3nz_amean,MFCC 2 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average (VOICED),Spectral (balance/shape/dynamics)
+mfcc2V_sma3nz_stddevNorm,MFCC 2 (Mel-Frequency Cepstral Coefficient 1) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
+mfcc3V_sma3nz_amean,MFCC 3 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average (VOICED),Spectral (balance/shape/dynamics)
+mfcc3V_sma3nz_stddevNorm,MFCC 3 (Mel-Frequency Cepstral Coefficient 1) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
+mfcc4V_sma3nz_amean,MFCC 4 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average (VOICED),Spectral (balance/shape/dynamics)
+mfcc4V_sma3nz_stddevNorm,MFCC 4 (Mel-Frequency Cepstral Coefficient 1) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
+alphaRatioUV_sma3nz_amean,Alpha ratio (ratio of the summed energy from 50–1000Hz and 1–5kHz) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+hammarbergIndexUV_sma3nz_amean,Hammarberg Index (ratio of the strongest energy peak in the 0–2kHz region to the strongest peak in the 2–5kHz region) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+slopeUV0-500_sma3nz_amean,Spectral slope 0-500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+slopeUV500-1500_sma3nz_amean,Spectral slope 500-1500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+spectralFluxUV_sma3nz_amean,Spectral Flux (difference of the spectra of two consecutive frames) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+loudnessPeaksPerSec,"The rate of loudness peaks, i. e., the number of loudness peaks per second",Temporal
+VoicedSegmentsPerSec,The number of continuous voiced regions per second,Temporal
+MeanVoicedSegmentLengthSec,The mean length of continuously voiced regions (F0 > 0),Temporal
+StddevVoicedSegmentLengthSec,The standard deviation of continuously voiced regions (F0 > 0),Temporal
+MeanUnvoicedSegmentLength,The mean length of unvoiced regions (F0 = 0; approximating pauses),Temporal
+StddevUnvoicedSegmentLength,The standard deviation of unvoiced regions (F0 = 0; approximating pauses),Temporal
+equivalentSoundLevel_dBp,The equivalent sound level,Temporal
+AU01_c,Inner brow raiser (per second),Facial action unit (Total)
+AU02_c,Outer brow raiser (per second),Facial action unit (Total)
+AU04_c,Brow lowerer (per second),Facial action unit (Total)
+AU05_c,Upper lid raiser (per second),Facial action unit (Total)
+AU06_c,Cheek raiser (per second),Facial action unit (Total)
+AU07_c,Lid tightener (per second),Facial action unit (Total)
+AU09_c,Nose wrinkler (per second),Facial action unit (Total)
+AU10_c,Upper lip raiser (per second),Facial action unit (Total)
+AU12_c,Lip corner puller (per second),Facial action unit (Total)
+AU14_c,Dimpler (per second),Facial action unit (Total)
+AU15_c,Lip corner depressor (per second),Facial action unit (Total)
+AU17_c,Chin raiser (per second),Facial action unit (Total)
+AU20_c,Lip stretcher (per second),Facial action unit (Total)
+AU23_c,Lip tightener (per second),Facial action unit (Total)
+AU25_c,Lips part (per second),Facial action unit (Total)
+AU26_c,Jaw drop (per second),Facial action unit (Total)
+AU28_c,Lips suck (per second),Facial action unit (Total)
+AU45_c,Blink (per second),Facial action unit (Total)
+AU01_c_sil,Inner brow raiser (per second) - while not speaking,Facial action unit (Silent)
+AU02_c_sil,Outer brow raiser (per second) - while not speaking,Facial action unit (Silent)
+AU04_c_sil,Brow lowerer (per second) - while not speaking,Facial action unit (Silent)
+AU05_c_sil,Upper lid raiser (per second) - while not speaking,Facial action unit (Silent)
+AU06_c_sil,Cheek raiser (per second) - while not speaking,Facial action unit (Silent)
+AU07_c_sil,Lid tightener (per second) - while not speaking,Facial action unit (Silent)
+AU09_c_sil,Nose wrinkler (per second) - while not speaking,Facial action unit (Silent)
+AU10_c_sil,Upper lip raiser (per second) - while not speaking,Facial action unit (Silent)
+AU12_c_sil,Lip corner puller (per second) - while not speaking,Facial action unit (Silent)
+AU14_c_sil,Dimpler (per second) - while not speaking,Facial action unit (Silent)
+AU15_c_sil,Lip corner depressor (per second) - while not speaking,Facial action unit (Silent)
+AU17_c_sil,Chin raiser (per second) - while not speaking,Facial action unit (Silent)
+AU20_c_sil,Lip stretcher (per second) - while not speaking,Facial action unit (Silent)
+AU23_c_sil,Lip tightener (per second) - while not speaking,Facial action unit (Silent)
+AU25_c_sil,Lips part (per second) - while not speaking,Facial action unit (Silent)
+AU26_c_sil,Jaw drop (per second) - while not speaking,Facial action unit (Silent)
+AU28_c_sil,Lips suck (per second) - while not speaking,Facial action unit (Silent)
+AU45_c_sil,Blink (per second) - while not speaking,Facial action unit (Silent)
+AU01_c_sp,Inner brow raiser (per second) - while speaking,Facial action unit (Speaking)
+AU02_c_sp,Outer brow raiser (per second) - while speaking,Facial action unit (Speaking)
+AU04_c_sp,Brow lowerer (per second) - while speaking,Facial action unit (Speaking)
+AU05_c_sp,Upper lid raiser (per second) - while speaking,Facial action unit (Speaking)
+AU06_c_sp,Cheek raiser (per second) - while speaking,Facial action unit (Speaking)
+AU07_c_sp,Lid tightener (per second) - while speaking,Facial action unit (Speaking)
+AU09_c_sp,Nose wrinkler (per second) - while speaking,Facial action unit (Speaking)
+AU10_c_sp,Upper lip raiser (per second) - while speaking,Facial action unit (Speaking)
+AU12_c_sp,Lip corner puller (per second) - while speaking,Facial action unit (Speaking)
+AU14_c_sp,Dimpler (per second) - while speaking,Facial action unit (Speaking)
+AU15_c_sp,Lip corner depressor (per second) - while speaking,Facial action unit (Speaking)
+AU17_c_sp,Chin raiser (per second) - while speaking,Facial action unit (Speaking)
+AU20_c_sp,Lip stretcher (per second) - while speaking,Facial action unit (Speaking)
+AU23_c_sp,Lip tightener (per second) - while speaking,Facial action unit (Speaking)
+AU25_c_sp,Lips part (per second) - while speaking,Facial action unit (Speaking)
+AU26_c_sp,Jaw drop (per second) - while speaking,Facial action unit (Speaking)
+AU28_c_sp,Lips suck (per second) - while speaking,Facial action unit (Speaking)
+AU45_c_sp,Blink (per second) - while speaking,Facial action unit (Speaking)
