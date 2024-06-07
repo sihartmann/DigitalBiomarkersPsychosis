@@ -588,27 +588,36 @@ def replay_video(path):
 		sleep_ms = int(np.round((1/fps)*1000))
 		count = 1
 		#player = MediaPlayer(f"{path}/{subject}_video.mp4")
+		out = cv2.VideoWriter(f"{path}/{subject}_replay.avi",cv2.VideoWriter_fourcc(*"MJPG"), 20.0, (1100,600))
 		while True:
 			grabbed, frame=video.read()
-			# Resize the image frames 
-			resize = cv2.resize(frame, (900, 1100))
-			fig = create_chart(count, df, subject, path)
-			fig = fig[:,:,0:3]
-			rows,cols,channels = fig.shape
-			overlay=cv2.addWeighted(resize[0:0+rows, 0:0+cols],0.5,fig,0.5,0)
-			resize[0:0+rows, 0:0+cols ] = overlay
-			count += 1
-			#audio_frame, val = player.get_frame()
 			if not grabbed:
 				print("End of video")
 				break
+			# Resize the image frames 
+			resize = frame[180:540,:]
+			resize = cv2.resize(resize, (800, 600))
+			fig = create_chart(count, df, subject, path)
+			fig = fig[20:220,:,0:3]
+			rows,cols,channels = fig.shape
+			rows2,cols2,channels2 = resize.shape
+			overlay=cv2.addWeighted(resize[0:0+rows, cols2-cols:cols2],0.2,fig,0.8,0)
+			image_extended = np.ndarray((resize.shape[0], resize.shape[1] + overlay.shape[1], resize.shape[2]), dtype=resize.dtype)
+			image_extended[:, :resize.shape[1]] = resize
+			image_extended[0:overlay.shape[0], resize.shape[1]:] = overlay
+			image_extended[overlay.shape[0]:(2*overlay.shape[0]), resize.shape[1]:] = overlay
+			image_extended[2*overlay.shape[0]:(3*overlay.shape[0]), resize.shape[1]:] = overlay
+			count += 1
+			#audio_frame, val = player.get_frame()
 			if cv2.waitKey(sleep_ms) & 0xFF == ord("q"):
 				break
-			cv2.imshow("Video", resize)
+			out.write(image_extended.astype('uint8'))
+			#cv2.imshow("Video", image_extended)
 			#if val != 'eof' and audio_frame is not None:
 				#audio
 				#img, t = audio_frame
 		video.release()
+		out.release()
 		cv2.destroyAllWindows()
 
 def load_features(path, subject):
@@ -619,7 +628,7 @@ def load_features(path, subject):
 		tmp = np.diff(df_face[column])
 		tmp = tmp > 0
 		tmp = np.append(np.zeros(1), tmp.astype(int))
-		df_face[column] = np.convolve(tmp, np.ones(260)/260, mode='same')*26*6
+		df_face[column] = np.convolve(tmp, np.ones(130)/130, mode='same')*13*6
 	return(df_face)
 
 def create_chart(count, df, subject, path):
@@ -630,11 +639,23 @@ def create_chart(count, df, subject, path):
     theta=["Outer brow raiser","Nose wrinkler","Upper lip raiser","Lip suck rate","Blink rate"]))
 	fig = px.line_polar(df_plot, r='r', theta='theta', line_close=True)
 	fig.update_polars(
-    radialaxis_tickvals=[1, 2, 3, 4, 5],
-    radialaxis_tickmode="array",
-    radialaxis_range=[0, 5])  # Set the range of radial axis to always go up to 5
+    	radialaxis_tickvals=[1, 2, 3, 4, 5],
+    	radialaxis_tickmode="array",
+    	radialaxis_range=[0, 5])  # Set the range of radial axis to always go up to 5
+	fig.update_layout(
+		title_text = "Facial movement (per minute)",
+		title_automargin = False,
+		title_x = 0.5,
+		title_xanchor = "center",
+		title_y = 0.85,
+		title_yanchor = "middle",
+    	title_font_size = 12,
+		font_size = 10,
+		plot_bgcolor = "#fff",
+		paper_bgcolor = "#fff")
+
 	fig.update_traces(fill='toself')
-	fig_bytes = fig.to_image(format="png",  width=400, height=400, scale=0.75)
+	fig_bytes = fig.to_image(format="png", width = 300, height= 300, scale = 1)
 	buf = io.BytesIO(fig_bytes)
 	img = Image.open(buf)
 	return np.asarray(img)
