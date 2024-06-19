@@ -97,7 +97,7 @@ class pipe:
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
-			self.logger.info("The log directory already exists. Existing logs will be overwritten.")
+			self.logger.info("\tThe log directory already exists. Existing logs will be overwritten.")
 		if os.path.isfile(f"{self.opensmile_audio}") == False:
 			command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration=5" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
 			self.logger.debug("\tRunning ffmpeg on participant file using {}.".format(command))
@@ -324,7 +324,7 @@ class pipe:
 		tokens = [token.lemma_ for token in doc]
 		return ' '.join(tokens)
 	
-	# Smenatic analysis usng spaCy, nltk, ...
+	# Semantic analysis usng spaCy, nltk, ...
 	def run_nltk(self, output_file, lsa_output, csv_output):
 		if not(os.path.isfile(self.transcript) and os.path.isfile(self.transcript_int)):
 			self.logger.error("\tTranscript could not be found. Do not rename or move it.")
@@ -510,9 +510,9 @@ class pipeParser:
 			if not participant_dir.endswith(".csv"):
 				for f in os.listdir(participant_dir_path):
 					file = os.path.join(participant_dir_path, f)
-					if (f.endswith('2.mp4')):
+					if (f.endswith('2.mp4') or f.endswith('2.m4a')):
 						audio = file
-					elif (f.endswith('1.mp4')):
+					elif (f.endswith('1.mp4') or f.endswith('1.m4a')):
 						int_audio = file
 					elif f.find('gvo') != -1 and f.endswith('.mp4'):
 						video = file
@@ -548,7 +548,7 @@ def clear_data(path):
                 os.rmdir(log_dir_path)
             for filename in files:
                 file_path = os.path.join(root, filename)
-                if (not (filename.endswith('mp4'))):
+                if (not (filename.endswith('mp4')) and not (filename.endswith('m4a'))):
                     os.remove(file_path)
     except Exception as e:
         print(f"An error occurred: {e}")\
@@ -624,7 +624,7 @@ class DigBioWindow(QMainWindow):
             process.join()
         summary_queue.put(None)
         summary_process.join()
-        print("INFO:\t All participants complete. You can close the windows now.")
+        print("INFO:\tAll participants complete. You can close the windows now.")
         self.close()
 
 
