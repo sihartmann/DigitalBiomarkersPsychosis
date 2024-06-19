@@ -17,8 +17,8 @@ The pipeline includes running [openSMILE](https://audeering.github.io/opensmile/
 ## SET-UP
 - Place all required executables/folders into the DigBio folder. Place a copy of the ffmpeg executable into the folder of the whisper installation that contains the file 'whisper.exe'.
 - Create a folder for every participant. The name of this folder will be the participant's ID. Each folder must contain the following files, downloaded from HIPAA zoom.
-    - [date and time of the interview]_Recording_separate1.mp4
-    - [date and time of the interview]_Recording_separate1.mp4
+    - [date and time of the interview]_Recording_separate1 (mp4 or m4a format accepted)
+    - [date and time of the interview]_Recording_separate1 (mp4 or m4a format accepted)
     - [date and time of the interview]_Recording_gvo_1280x720.mp4
 - Do not rename these files. If you don't have either video or audio from the recording, you can still run the pipeline, however the output will be reduced.
 - If your recordings are not from HIPAA zoom, you will need to rename the files to match the above format.
