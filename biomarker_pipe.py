@@ -622,6 +622,7 @@ def replay_video(path):
 
 def load_features(path, subject):
 
+	# Load facial features
 	df_face = pd.read_csv(f"{path}/{subject}.csv")
 	df_face = df_face[["frame"," AU02_c"," AU09_c"," AU10_c"," AU28_c"," AU45_c"]]
 	for column in [" AU02_c"," AU09_c"," AU10_c"," AU28_c"," AU45_c"]:
@@ -629,7 +630,21 @@ def load_features(path, subject):
 		tmp = tmp > 0
 		tmp = np.append(np.zeros(1), tmp.astype(int))
 		df_face[column] = np.convolve(tmp, np.ones(130)/130, mode='same')*13*6
-	return(df_face)
+
+	# Load acoustic features
+	df_acoustic = pd.read_csv(f"{path}/{subject}_opensmile.csv")
+	df_acoustic = df_acoustic[["mfcc1_sma3","mfcc2_sma3","jitterLocal_sma3nz", "F1frequency_sma3nz","logRelF0-H1-H2_sma3nz"]]
+	df_acoustic_resampled = pd.DataFrame()
+	for column in ["mfcc1_sma3","mfcc2_sma3","jitterLocal_sma3nz", "F1frequency_sma3nz","logRelF0-H1-H2_sma3nz"]:
+		tmp = df_acoustic[column]
+		tmp2 = [np.mean(tmp[x:x+4]) for x in range(0, len(tmp), 4)]
+		if len(df_face) > len(tmp2):
+			tmp2.extend([tmp2[-1]] * (len(df_face)-len(tmp2)))
+		df_acoustic_resampled[column] = np.convolve(tmp2, np.ones(130)/130, mode='same')*13*6
+
+	df = pd.concat([df_face, df_acoustic_resampled], axis=1)
+
+	return(df)
 
 def create_chart(count, df, subject, path):
 	df = df[df["frame"] == count]
