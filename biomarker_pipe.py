@@ -431,12 +431,14 @@ class pipe:
 				val = dep_counter.get(key,0)
 				DEP_val_list.append(val)
 
-			data = ["avg sentence len", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score", "part_words/total_words"]
+			data = ["avg sentence len", "total num sent", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score", "part_words/total_words"]
 			col_names = data + POS_tags + DEP_tags
 			head = [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
 			writer.writerow(head)
-			body = [avg_sentence_length] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list + DEP_val_list
+			POS_val_list_norm = [x / len(sentences) for x in POS_val_list]
+			DEP_val_list_norm = [x / len(sentences) for x in DEP_val_list]
+			body = [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list_norm + DEP_val_list_norm
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
