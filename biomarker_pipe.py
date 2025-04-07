@@ -12,20 +12,21 @@ import csv
 import shutil
 import multiprocessing
 import nltk
-import regex as re
+#import regex as re
+import string
 from nltk.sentiment import SentimentIntensityAnalyzer
 import contractions
 import spacy
 import pandas as pd
-import string
-from sklearn.feature_extraction.text import TfidfVectorizer
+import re
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from argparse import Namespace
 import PyQt5
 from PyQt5.QtWidgets import *
 from PyQt5.uic import *
 
-VERSION = '1.0 with GUI'
+VERSION = '1.1 with GUI'
 
 ## Main processing class.
 class pipe:
@@ -69,10 +70,10 @@ class pipe:
 
 		self.logger.info("\tDigBio version: {0}.".format(VERSION))
 		self.logger.debug("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
-		self.ffmpeg_path =  r"Whisper-OpenAI_r136\Whisper-OpenAI\ffmpeg.exe"
-		if not os.path.isfile(self.ffmpeg_path):
-			self.logger.error("\tMissing dependency: ffmpeg.")
-			sys.exit(1)
+		#self.ffmpeg_path =  r"Whisper-OpenAI_r136\Whisper-OpenAI\ffmpeg.exe"
+		#if not os.path.isfile(self.ffmpeg_path):
+		#	self.logger.error("\tMissing dependency: ffmpeg.")
+		#	sys.exit(1)
 		self.whisper_path = r"Whisper-OpenAI_r136\Whisper-OpenAI\whisper.exe"
 		if not os.path.isfile(self.whisper_path):
 			self.logger.error("\tMissing dependency: whisper.")
@@ -99,7 +100,8 @@ class pipe:
 		except OSError:
 			self.logger.info("\tThe log directory already exists. Existing logs will be overwritten.")
 		if os.path.isfile(f"{self.opensmile_audio}") == False:
-			command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=0:start_duration=1:stop_periods=-1:stop_duration=5" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
+			#command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
+			command = f'ffmpeg  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
 			self.logger.debug("\tRunning ffmpeg on participant file using {}.".format(command))
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
@@ -149,11 +151,11 @@ class pipe:
 		if os.path.isfile(self.transcript):
 			self.logger.info("\tTranscript for this participant already exists. Skipping transcription...")
 		else:
-			linux_audio = self.audio.replace('\\','/')
-			command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
+			linux_audio = self.opensmile_audio.replace('\\','/')
+			command = f'{self.whisper_path} {linux_audio} -f txt --model {model} --language English --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
 			self.logger.debug("\tRunning whisper on participant file using {}.".format(command))
 			subprocess.check_output(command, shell=True)
-			command = f'ren {self.audio[:-4]}.txt {self.transcript_clean}'
+			command = f'ren {self.opensmile_audio[:-4]}.txt {self.transcript_clean}'
 			subprocess.check_output(command, shell=True)
 			self.logger.info(f"\twhisper (participant {self.participant_name}) has finished successfully.")
 		if self.audio_interviewer is not None:
@@ -161,7 +163,7 @@ class pipe:
 				self.logger.info("\tTranscript for this interviewer already exists. Skipping transcription...")
 			else:
 				linux_audio = self.audio_interviewer.replace('\\','/')
-				command = f'{self.whisper_path} -f txt --model {model} audio {linux_audio} --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
+				command = f'{self.whisper_path} {linux_audio} -f txt --model {model} --language English --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
 				self.logger.debug("\tRunning whisper on interviewer file using {}.".format(command))
 				subprocess.check_output(command, shell=True)
 				command = f'ren {self.audio_interviewer[:-4]}.txt {self.transcript_int_clean}'
@@ -209,6 +211,7 @@ class pipe:
 			edited_rows = rows
 			audio_off = 1
 		au_count = self.count_binary_aus(edited_rows, audio_off)
+		conf_scores = self.confidence_calculation(rows)
 		self.openface_out = f"{self.participant_dir}\\{self.participant_name}_openface_out.csv"
 		with open(f'{self.participant_dir}\\{self.participant_name}.csv', 'w', newline='') as file:
 			writer = csv.writer(file)
@@ -217,15 +220,15 @@ class pipe:
 		with open(self.openface_out, 'w', newline='') as f:
 			writer = csv.writer(f)
 			if not audio_off:
-				writer.writerow([ "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
+				writer.writerow(["Max confidence", "Min confidence", "Avg confidence", "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
 						"AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c", "AU01_c_sil", "AU02_c_sil",  "AU04_c_sil" ,"AU05_c_sil", "AU06_c_sil", "AU07_c_sil", "AU09_c_sil", "AU10_c_sil", "AU12_c_sil",
 						"AU14_c_sil", "AU15_c_sil", "AU17_c_sil", "AU20_c_sil", "AU23_c_sil", "AU25_c_sil", "AU26_c_sil", "AU28_c_sil", "AU45_c_sil", "AU01_c_sp", "AU02_c_sp",  "AU04_c_sp" ,"AU05_c_sp", "AU06_c_sp", "AU07_c_sp", "AU09_c_sp", "AU10_c_sp", "AU12_c_sp",
 						"AU14_c_sp", "AU15_c_sp", "AU17_c_sp", "AU20_c_sp", "AU23_c_sp", "AU25_c_sp", "AU26_c_sp", "AU28_c_sp", "AU45_c_sp"])
-				writer.writerow(au_count[0]+au_count[1]+au_count[2])
+				writer.writerow(conf_scores + au_count[0]+au_count[1]+au_count[2])
 			else:
-				writer.writerow([ "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
+				writer.writerow(["Max confidence", "Min confidence", "Avg confidence", "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
 						"AU14_c", "AU15_c", "AU17_c", "AU20_c", "AU23_c", "AU25_c", "AU26_c", "AU28_c", "AU45_c"])
-				writer.writerow(au_count[0])
+				writer.writerow(conf_scores + au_count[0])
 
 	# Participant sumary file of all results generated.
 	def write_own_summary(self):
@@ -292,6 +295,24 @@ class pipe:
 					cts[i] /= self.video_len
 		return return_cts
 
+	def confidence_calculation(self, rows):
+		max_confidence = 0
+		min_confidence = 100
+		avg_confidence = 0
+		count = 0
+		for row in rows[1:]:
+			confidence = int(float(row[3].strip())*100)
+			if confidence > 0:
+				if confidence > max_confidence:
+					max_confidence = confidence
+				if confidence < min_confidence:
+					min_confidence = confidence
+				avg_confidence += confidence
+				count += 1
+
+		avg_confidence = avg_confidence/count
+		return [max_confidence, min_confidence, avg_confidence]
+
 	# Helper function fo AU count. Updates each frame with participant speech value (0 for silent, 1 for speech).
 	def check_silence_periods(self, silence_list, rows):
 		current_start = silence_list[0]
@@ -336,11 +357,17 @@ class pipe:
 
 		# Text to lowercase conversion
 		nlp = spacy.load("en_core_web_sm")
-		sentences = [self.preprocess_text(sent.text,nlp) for sent in nlp(all_text).sents]
+		sentences = [sent.text.strip() for sent in nlp(all_text).sents]
 
-		# lsa analysis
-		vectorizer = TfidfVectorizer()
-		X = vectorizer.fit_transform(sentences)
+		# Similarity preprocessing analysis
+		#vectorizer = TfidfVectorizer()
+		#X = vectorizer.fit_transform(sentences)
+
+		# Initializing the Sentence Transformer model
+		model = SentenceTransformer('all-mpnet-base-v2')
+
+		# Encoding the sentences to obtain their embeddings
+		X = model.encode(sentences, convert_to_tensor=True)
 		similarity_matrix = cosine_similarity(X)
 		with open(lsa_output, "w", newline="") as f:
 			writer = csv.writer(f)
@@ -385,6 +412,7 @@ class pipe:
 		# Remove punctuation
 		translator = str.maketrans('','', string.punctuation)
 		fixed_text = all_text.translate(translator)
+		#fixed_text = re.sub(r'[^\w\s]','',all_text)
 
 		# Get rid of contractions like I'm, it's, can't ...
 		words = nltk.tokenize.word_tokenize(fixed_text)
@@ -398,23 +426,43 @@ class pipe:
 		with open(output_file, 'w') as f:
 			pos_counter = {}
 			dep_counter = {}
+			tag_counter = {}
 			for i, token in enumerate(doc):
-				f.write(f"Token: {token.text}\tPOS: {token.pos_}\tDep: {token.dep_}\n")
+				f.write(f"Token: {token.text}\tPOS: {token.pos_}\tTags: {token.tag_}\tDep: {token.dep_}\n")
 				pos= token.pos_
+				if pos == "PRON":
+					match token.morph.get("Person"):
+						case ['1']:
+							pos = "p1"
+						case ['2']:
+							pos = "p2"
+						case ['3']:
+							pos = "p3"
 				if pos in pos_counter:
 					pos_counter[pos] += 1
 				else:
 					pos_counter[pos] = 1
+				tag= token.tag_
+				if tag in tag_counter:
+					tag_counter[tag] += 1
+				else:
+					tag_counter[tag] = 1
 				dep = token.dep_
 				if dep in dep_counter:
 					dep_counter[dep] += 1
 				else:
 					dep_counter[dep] = 1
 			f.write(f"\nPOS counts: {pos_counter}")
+			f.write(f"\nTAG counts: {tag_counter}")
 			f.write(f"\nDependency counter: {dep_counter}")
 		with open(csv_output, 'w', newline='') as f:
 			writer = csv.writer(f)
-			POS_tags = ["ADJ", "ADP", "ADV", "AUX", "CONJ", "CCONJ", "DET", "INTJ", "NOUN" , "NUM", "PART", "PROUN", "PROPN", "PUNCT", "SCONJ", "SYM", "X"]
+			POS_tags = ["ADJ", "ADP", "ADV", "AUX", "CONJ", "CCONJ", "DET", "INTJ", "NOUN" , "NUM", "PART", "PRON", "p1", "p2", "p3", "PROPN", "PUNCT", "SCONJ", "SYM", "X"]
+			TAG_tags = ["AFX","CC", "CD", "DT", "EX", "FW", "HYPH", "IN", "JJ", "JJR", "JJS",
+            "LS", "MD", "NIL", "NN", "NNP", "NNPS", "NNS", "PDT",
+            "POS", "PRP", "PRP$", "RB", "RBR", "RBS", "RP", "TO", "UH", "VB", "VBD", "VBG",
+            "VBN", "VBP", "VBZ", "WDT", "WP", "WP$", "WRB", "SP", "ADD",
+            "NFP", "GW", "XX"]
 			DEP_tags = ["ROOT", "acl", "acomp", "advcl", "advmod", "agent", "amod", "appos", "attr",
 			"aux", "auxpass", "case", "cc", "ccomp", "compound", "conj", "cop", "csubj",
 			"csubjpass", "dative", "dep", "det", "dobj", "expl", "intj", "mark", "meta",
@@ -425,6 +473,11 @@ class pipe:
 			for key in POS_tags:
 				val = pos_counter.get(key,0)
 				POS_val_list.append(val)
+
+			TAG_val_list = []
+			for key in TAG_tags:
+				val = tag_counter.get(key,0)
+				TAG_val_list.append(val)
 			
 			DEP_val_list = []
 			for key in DEP_tags:
@@ -432,13 +485,14 @@ class pipe:
 				DEP_val_list.append(val)
 
 			data = ["avg sentence len", "total num sent", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score", "part_words/total_words"]
-			col_names = data + POS_tags + DEP_tags
+			col_names = data + POS_tags + TAG_tags + DEP_tags
 			head = [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
 			writer.writerow(head)
 			POS_val_list_norm = [x / len(sentences) for x in POS_val_list]
+			TAG_val_list_norm = [x / len(sentences) for x in TAG_val_list]
 			DEP_val_list_norm = [x / len(sentences) for x in DEP_val_list]
-			body = [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list_norm + DEP_val_list_norm
+			body = [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list_norm + TAG_val_list_norm + DEP_val_list_norm
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
@@ -455,7 +509,8 @@ class pipe:
 		if self.audio == None:
 			self.logger.warning("\tNo audio files provided.")
 		else:
-			command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
+			#command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
+			command = f'ffmpeg -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
 			self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
@@ -475,7 +530,8 @@ class pipe:
 		if os.path.isfile(cropped_video):
 			self.logger.info("\tVideo has already been cropped. Skipping step and continuing...")
 		else:
-			command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
+			#command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
+			command = f'ffmpeg -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
 			self.logger.debug("\tRunning ffmpeg cropping on participant file using {}.".format(command))
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
@@ -581,7 +637,7 @@ class DigBioWindow(QMainWindow):
         super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
         loadUi('DigBio.ui', self) # Load the .ui file
         self.show() # Show the GUI
-        self.setWindowTitle('DigBio 1.0')
+        self.setWindowTitle('DigBio 1.1')
         self.setFixedSize(1000, 300)
 
         # Set default values

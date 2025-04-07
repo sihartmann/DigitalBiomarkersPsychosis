@@ -1,6 +1,7 @@
-Name,Description,Group
+ï»¿Name,Description,Group
 ID,Subject ID (extracted from folder name),Subject information
 avg sentence len,Average sentence length in speech of participant,Speech information
+total num sent,Total number of sentences,Speech information
 neg sent,Average negative sentiment in speech of participant,Sentiment scores
 neu sent,Average netural sentiment in speech of participant,Sentiment scores
 pos sent,Average positive sentiment in speech of participant,Sentiment scores
@@ -18,13 +19,57 @@ INTJ,Total number of interjection used by participant,Part-of-speech tagging
 NOUN,Total number of noun used by participant,Part-of-speech tagging
 NUM,Total number of numeral used by participant,Part-of-speech tagging
 PART,Total number of particle used by participant,Part-of-speech tagging
-PROUN,Total number of pronoun used by participant,Part-of-speech tagging
+p1,1st person point of view,Part-of-speech tagging
+p2,2nd person point of view,Part-of-speech tagging
+p3,3rd person point of view,Part-of-speech tagging
 PROPN,Total number of proper noun used by participant,Part-of-speech tagging
 PUNCT,Total number of punctuation used by participant,Part-of-speech tagging
 SCONJ,Total number of subordinating conjunction used by participant,Part-of-speech tagging
 SYM,Total number of symbols used by participant,Part-of-speech tagging
 X,Total number of other used by participant,Part-of-speech tagging
-ROOT,Total number of roots used by participant,Part-of-speech tagging
+AFX,Total number of affixes/total number of sentences,Part-of-speech tagging
+CC,Total number of coordinating conjunctions/total number of sentences,Part-of-speech tagging
+CD,Total number of cardinal numbers/total number of sentences,Part-of-speech tagging
+DT,Total number of determiners/total number of sentences,Part-of-speech tagging
+EX,Total number of existential there/total number of sentences,Part-of-speech tagging
+FW,Total number of foreign words/total number of sentences,Part-of-speech tagging
+HYPH,Total number of hyphens/total number of sentences,Part-of-speech tagging
+IN,Total number of subordinating conjunctions/total number of sentences,Part-of-speech tagging
+JJ,Total number of adjectives/total number of sentences,Part-of-speech tagging
+JJR,Total number of comparative adjectives/total number of sentences,Part-of-speech tagging
+JJS,Total number of superlative adjectives/total number of sentences,Part-of-speech tagging
+LS,Total number of list item makers/total number of sentences,Part-of-speech tagging
+MD,Total number of modal auxiliary verbs/total number of sentences,Part-of-speech tagging
+NIL,Total number of missing tags/total number of sentences,Part-of-speech tagging
+NN,Total number of singular nouns/total number of sentences,Part-of-speech tagging
+NNP,Total number of proper singular nouns/total number of sentences,Part-of-speech tagging
+NNPS,Total number of proper plural nouns/total number of sentences,Part-of-speech tagging
+NNS,Total number of plural nouns/total number of sentences,Part-of-speech tagging
+PDT,Total number of predeterminers/total number of sentences,Part-of-speech tagging
+POS,Total number of possessive endings/total number of sentences,Part-of-speech tagging
+PRP ,Total number of personal pronouns/total number of sentences,Part-of-speech tagging
+PRP$,Total number of possessive pronouns/total number of sentences,Part-of-speech tagging
+RB,Total number of adverbs/total number of sentences,Part-of-speech tagging
+RBR,Total number of comparative adverbs/total number of sentences,Part-of-speech tagging
+RBS,Total number of superlative adverbs/total number of sentences,Part-of-speech tagging
+RP,Total number of particle adverbs/total number of sentences,Part-of-speech tagging
+TO,Total number of infinitival 'to'/total number of sentences,
+UH,Total number of interjection/total number of sentences,
+VB,Total number of verbs/total number of sentences,
+VBD,Total number of past tense verbs/total number of sentences,
+VBG,Total number of gerund verbs/total number of sentences,
+VBN,Total number of past participle verbs/total number of sentences,
+VBP,Total number of non-3rd person singular present verbs/total number of sentences,
+VBZ,Total number of 3rd person singular present verbs/total number of sentences,
+WDT,Total number of wh-determiner/total number of sentences,
+WP,Total number of wh-pronouns/total number of sentences,
+WP$,Total number of wh-possessive pronouns/total number of sentences,
+WRB,Total number of wh-adverbs/total number of sentences,
+SP,Total number of spaces/total number of sentences,
+ADD,Total number of emails/total number of sentences,
+NFP,Total number of superfluous punctuations/total number of sentences,
+GW,Total number of additional word in multi-word expression/total number of sentences,
+XX,Total number of unknown/total number of sentences,
 acl,Total number of clausal modifier of nount (adjectival clause) used by participant,Syntactic dependency tagging
 acomp,Total number of adjectival complement used by participant,Syntactic dependency tagging
 advcl,Total number of adverbial claus modifier used by participant,Syntactic dependency tagging
@@ -120,10 +165,10 @@ F3bandwidth_sma3nz_amean,Formant 3  (bandwidth of third formant) - arithmetic av
 F3bandwidth_sma3nz_stddevNorm,Formant 3  (bandwidth of third formant) - standard deviation,Frequency
 F3amplitudeLogRelF0_sma3nz_amean,Formant 3 relative energy (the ratio of the energy of the spectral harmonic peak at the third centre frequency to the energy of the spectral peak at F0) - arithmetic average,Spectral (balance/shape/dynamics)
 F3amplitudeLogRelF0_sma3nz_stddevNorm,Formant 3 relative energy (the ratio of the energy of the spectral harmonic peak at the third centre frequency to the energy of the spectral peak at F0) - standard deviation,Spectral (balance/shape/dynamics)
-alphaRatioV_sma3nz_amean,Alpha ratio (ratio of the summed energy from 50–1000Hz and 1–5kHz) - arithmetic average,Spectral (balance/shape/dynamics)
-alphaRatioV_sma3nz_stddevNorm,Alpha ratio (ratio of the summed energy from 50–1000Hz and 1–5kHz) - standard deviation,Spectral (balance/shape/dynamics)
-hammarbergIndexV_sma3nz_amean,Hammarberg Index (ratio of the strongest energy peak in the 0–2kHz region to the strongest peak in the 2–5kHz region) - arithmetic average,Spectral (balance/shape/dynamics)
-hammarbergIndexV_sma3nz_stddevNorm,Hammarberg Index (ratio of the strongest energy peak in the 0–2kHz region to the strongest peak in the 2–5kHz region) - standard deviation,Spectral (balance/shape/dynamics)
+alphaRatioV_sma3nz_amean,Alpha ratio (ratio of the summed energy from 50â€“1000Hz and 1â€“5kHz) - arithmetic average,Spectral (balance/shape/dynamics)
+alphaRatioV_sma3nz_stddevNorm,Alpha ratio (ratio of the summed energy from 50â€“1000Hz and 1â€“5kHz) - standard deviation,Spectral (balance/shape/dynamics)
+hammarbergIndexV_sma3nz_amean,Hammarberg Index (ratio of the strongest energy peak in the 0â€“2kHz region to the strongest peak in the 2â€“5kHz region) - arithmetic average,Spectral (balance/shape/dynamics)
+hammarbergIndexV_sma3nz_stddevNorm,Hammarberg Index (ratio of the strongest energy peak in the 0â€“2kHz region to the strongest peak in the 2â€“5kHz region) - standard deviation,Spectral (balance/shape/dynamics)
 slopeV0-500_sma3nz_amean,Spectral slope 0-500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average,Spectral (balance/shape/dynamics)
 slopeV0-500_sma3nz_stddevNorm,Spectral slope 0-500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - standard deviation,Spectral (balance/shape/dynamics)
 slopeV500-1500_sma3nz_amean,Spectral slope 500-1500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average,Spectral (balance/shape/dynamics)
@@ -138,8 +183,8 @@ mfcc3V_sma3nz_amean,MFCC 3 (Mel-Frequency Cepstral Coefficient 1) - arithmetic a
 mfcc3V_sma3nz_stddevNorm,MFCC 3 (Mel-Frequency Cepstral Coefficient 1) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
 mfcc4V_sma3nz_amean,MFCC 4 (Mel-Frequency Cepstral Coefficient 1) - arithmetic average (VOICED),Spectral (balance/shape/dynamics)
 mfcc4V_sma3nz_stddevNorm,MFCC 4 (Mel-Frequency Cepstral Coefficient 1) - standard deviation (VOICED),Spectral (balance/shape/dynamics)
-alphaRatioUV_sma3nz_amean,Alpha ratio (ratio of the summed energy from 50–1000Hz and 1–5kHz) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
-hammarbergIndexUV_sma3nz_amean,Hammarberg Index (ratio of the strongest energy peak in the 0–2kHz region to the strongest peak in the 2–5kHz region) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+alphaRatioUV_sma3nz_amean,Alpha ratio (ratio of the summed energy from 50â€“1000Hz and 1â€“5kHz) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
+hammarbergIndexUV_sma3nz_amean,Hammarberg Index (ratio of the strongest energy peak in the 0â€“2kHz region to the strongest peak in the 2â€“5kHz region) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
 slopeUV0-500_sma3nz_amean,Spectral slope 0-500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
 slopeUV500-1500_sma3nz_amean,Spectral slope 500-1500Hz (linear regression slope of the logarithmic power spec- trum within the two given bands) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)
 spectralFluxUV_sma3nz_amean,Spectral Flux (difference of the spectra of two consecutive frames) - arithmetic average (UNVOICED),Spectral (balance/shape/dynamics)

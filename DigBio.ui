@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.1" encoding="UTF-8"?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -297,7 +297,7 @@
    </palette>
   </property>
   <property name="windowTitle">
-   <string>DigBio 1.0</string>
+   <string>DigBio 1.1</string>
   </property>
   <property name="animated">
    <bool>false</bool>
@@ -325,7 +325,7 @@
          </font>
         </property>
         <property name="text">
-         <string>DigBio 1.0 - Automatic digital biomarker extraction software from video and audio recordings
+         <string>DigBio 1.1 - Automatic digital biomarker extraction software from video and audio recordings
  
 Inventors: Simon Hartmann, Oliver Williams, and Scott Clark
 License: GNU GENERAL PUBLIC LICENSE 3.0</string>
