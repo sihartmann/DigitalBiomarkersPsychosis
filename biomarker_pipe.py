@@ -355,7 +355,7 @@ class pipe:
 			all_text = f.read()
 		self.logger.info(f"\tStarting semantic analysis for participant {self.participant_name}.")
 
-		# Text to lowercase conversion
+		# Extract all sentences
 		nlp = spacy.load("en_core_web_sm")
 		sentences = [sent.text.strip() for sent in nlp(all_text).sents]
 
@@ -390,6 +390,7 @@ class pipe:
 			word_ratio = words_num_part/total_words
 		else:
 			word_ratio = "N/A"
+			
 		neighbour_scores = []
 		for i in range(num_sent-1):
 			for j in range(num_sent -1):
@@ -484,15 +485,16 @@ class pipe:
 				val = dep_counter.get(key,0)
 				DEP_val_list.append(val)
 
-			data = ["avg sentence len", "total num sent", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score", "part_words/total_words"]
+			data = ["max sentence len", "avg sentence len", "total num sent", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score", "part_words/total_words"]
 			col_names = data + POS_tags + TAG_tags + DEP_tags
 			head = [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
+			max_sentence_length = max(len(sent.split()) for sent in sentences)
 			writer.writerow(head)
 			POS_val_list_norm = [x / len(sentences) for x in POS_val_list]
 			TAG_val_list_norm = [x / len(sentences) for x in TAG_val_list]
 			DEP_val_list_norm = [x / len(sentences) for x in DEP_val_list]
-			body = [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list_norm + TAG_val_list_norm + DEP_val_list_norm
+			body = [max_sentence_length] + [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list_norm + TAG_val_list_norm + DEP_val_list_norm
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
