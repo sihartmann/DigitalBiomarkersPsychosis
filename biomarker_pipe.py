@@ -25,8 +25,10 @@ from argparse import Namespace
 import PyQt5
 from PyQt5.QtWidgets import *
 from PyQt5.uic import *
+import silero_vad
+from scipy.io.wavfile import read as read_wav
 
-VERSION = '1.1 with GUI'
+VERSION = '1.2 with GUI'
 
 ## Main processing class.
 class pipe:
@@ -38,8 +40,9 @@ class pipe:
 		self.audio_interviewer = args[2].replace('/', '\\')
 		self.loglevel = args[3]
 		self.run_mode = args[4]
-		self.no_cut = args[5]
-		self.whisper_model = args[6]
+		self.vad = args[5]
+		self.no_cut = args[6]
+		self.whisper_model = args[7]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
@@ -49,6 +52,10 @@ class pipe:
 		self.participant_name = os.path.basename(self.participant_dir)
 		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
 		self.summary =  f'{self.participant_dir}\\..\\all_summary.csv'
+		self.part_timestamps = []
+		self.int_timestamps = []
+		self.sampling_rate = 0
+		self.opensmile_audio = self.audio
 		stderrhandler = logging.StreamHandler()
 		filehandler = logging.FileHandler("DigBio.log")
 		filehandler.setLevel(int(self.loglevel))
@@ -70,10 +77,6 @@ class pipe:
 
 		self.logger.info("\tDigBio version: {0}.".format(VERSION))
 		self.logger.debug("\tRunning DigBio with command: {}.".format(' '.join(sys.argv)))
-		#self.ffmpeg_path =  r"Whisper-OpenAI_r136\Whisper-OpenAI\ffmpeg.exe"
-		#if not os.path.isfile(self.ffmpeg_path):
-		#	self.logger.error("\tMissing dependency: ffmpeg.")
-		#	sys.exit(1)
 		self.whisper_path = r"Whisper-OpenAI_r136\Whisper-OpenAI\whisper.exe"
 		if not os.path.isfile(self.whisper_path):
 			self.logger.error("\tMissing dependency: whisper.")
@@ -92,24 +95,24 @@ class pipe:
 		return participants
 	
 	# Cut silences from audio using ffmpeg. This improves openSMILE results.
-	def clean_opensmile_audio(self):
-		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
-		log_file = self.participant_name + "_ffmpeg.log"
-		try:
-			os.mkdir(self.log_dir)
-		except OSError:
-			self.logger.info("\tThe log directory already exists. Existing logs will be overwritten.")
-		if os.path.isfile(f"{self.opensmile_audio}") == False:
-			#command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
-			command = f'ffmpeg  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
-			self.logger.debug("\tRunning ffmpeg on participant file using {}.".format(command))
-			exit_c, output = subprocess.getstatusoutput(command)
-			if exit_c != 0:
-				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-				sys.exit(1)
-			self.logger.info("\tffmpeg has finished successfully.")
-		else:
-			self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
+	# def clean_opensmile_audio(self):
+	# 	self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
+	# 	log_file = self.participant_name + "_ffmpeg.log"
+	# 	try:
+	# 		os.mkdir(self.log_dir)
+	# 	except OSError:
+	# 		self.logger.info("\tThe log directory already exists. Existing logs will be overwritten.")
+	# 	if os.path.isfile(f"{self.opensmile_audio}") == False:
+	# 		#command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
+	# 		command = f'ffmpeg  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
+	# 		self.logger.debug("\tRunning ffmpeg on participant file using {}.".format(command))
+	# 		exit_c, output = subprocess.getstatusoutput(command)
+	# 		if exit_c != 0:
+	# 			self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+	# 			sys.exit(1)
+	# 		self.logger.info("\tffmpeg has finished successfully.")
+	# 	else:
+	# 		self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
 
 	# Run openSMILE, generates both detailed and summary output.
 	def run_opensmile(self):
@@ -124,14 +127,20 @@ class pipe:
 				feature_set = opensmile.FeatureSet.eGeMAPSv02,
 				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 			)
-			features = smile.process_file(self.opensmile_audio)
+			if self.vad == 'VAD':
+				features = smile.process_file(self.opensmile_audio)
+			else:
+				features = smile.process_file(self.audio)
 			df = pd.DataFrame(features, columns=smile.feature_names)
 			df.to_csv(f_individual, index=False)
 
 			smile_summary = opensmile.Smile(
 				feature_set = opensmile.FeatureSet.eGeMAPSv02
 			)
-			features = smile_summary.process_file(self.opensmile_audio)
+			if self.vad != 'None':
+				features = smile_summary.process_file(self.opensmile_audio)
+			else:
+				features = smile_summary.process_file(self.audio)
 			df = pd.DataFrame(features, columns=smile_summary.feature_names)
 			df.to_csv(self.f_summary, index=False)
 			self.logger.info("\tOpensmile has completed successfully.")
@@ -172,8 +181,15 @@ class pipe:
 	
 	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.
 	def run_audio(self):
-		self.clean_opensmile_audio()
-		self.run_opensmile() 
+		if self.vad != 'None':
+			self.part_timestamps, self.audio_convert = self.voice_activity_detection(self.audio)
+			self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
+			self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
+			self.strip_audio(self.part_timestamps, self.audio_convert, self.opensmile_audio, False)
+
+		#self.clean_opensmile_audio()
+		self.log_dir = self.participant_dir + r'\logs'
+		self.run_opensmile()
 		self.run_whisper(self.whisper_model)
 		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
 
@@ -203,9 +219,9 @@ class pipe:
 			reader = csv.reader(file)
 			rows = list(reader)
 			self.video_len = float(rows[-1][2].strip())
-		if self.audio is not None:
-			part_silence_list = self.parse_silence_file(self.output_sr)
-			edited_rows = self.check_silence_periods(part_silence_list, rows)
+		if self.audio is not None and self.vad != 'None':
+			#part_silence_list = self.parse_silence_file(self.output_sr)
+			edited_rows = self.check_silence_periods(self.part_timestamps, self.int_timestamps, rows)
 			audio_off = 0
 		else:
 			edited_rows = rows
@@ -257,17 +273,17 @@ class pipe:
 			writer.writerow(self.content_list)
 
 	# Create list of silent periods from participant audio. Used for OpenFace analysis.
-	def parse_silence_file(self, file_path):
-		silence_list = []
-		with open(file_path, 'r') as file:
-			for line in file:
-					match = re.search(r'silence_end: (\d+\.\d+).*silence_duration: (\d+\.\d+)', line)
-					if match:
-						end = float(match.group(1))
-						dur = float(match.group(2))
-						start = end - dur
-						silence_list += [start,end]
-		return silence_list
+	# def parse_silence_file(self, file_path):
+	# 	silence_list = []
+	# 	with open(file_path, 'r') as file:
+	# 		for line in file:
+	# 				match = re.search(r'silence_end: (\d+\.\d+).*silence_duration: (\d+\.\d+)', line)
+	# 				if match:
+	# 					end = float(match.group(1))
+	# 					dur = float(match.group(2))
+	# 					start = end - dur
+	# 					silence_list += [start,end]
+	# 	return silence_list
 
 	# Parse OpenFace output file and count activation of all binary action units. Counts for silent, non-silent and all periods.
 	def count_binary_aus(self, rows, audio_off):
@@ -281,9 +297,10 @@ class pipe:
 					if last_val[i-696] == 0:
 						au_count[i-696] += 1
 						if not audio_off:
-							if int(float(row[-1].strip())) == 1:
+							# Get second to last element indicating participant speech 
+							if int(float(row[-2].strip())) == 1:
 								au_count_speech[i-696] += 1
-							elif int(float(row[-1].strip())) == 0:
+							elif int(float(row[-2].strip())) == 0:
 								au_count_sil[i-696] += 1
 				last_val[i-696] = int(float(row[i].strip()))
 		if not audio_off:
@@ -314,29 +331,47 @@ class pipe:
 		return [max_confidence, min_confidence, avg_confidence]
 
 	# Helper function fo AU count. Updates each frame with participant speech value (0 for silent, 1 for speech).
-	def check_silence_periods(self, silence_list, rows):
-		current_start = silence_list[0]
-		current_end = silence_list[1]
-		period_index = 2 
+	def check_silence_periods(self, part_timestamps, int_timestamps, rows):
+		part_start = part_timestamps[0]['start']
+		part_end = part_timestamps[0]['end']
+		int_start = int_timestamps[0]['start']
+		int_end = int_timestamps[0]['end']
+		part_index = 1
+		int_index = 1
 		modified_rows = []
 		rows[0].extend(["participant speech"])
+		rows[0].extend(["interviewer speech"])
 		modified_rows.append(rows[0])
+		part_end_flag = False
+		int_end_flag = False
 		for row in rows[1:]:
 			timestamp = float(row[2])
-			end_flag = False
-			if current_start <= timestamp < current_end and end_flag is not True:
-				silence_flag = 0
+			if part_start <= timestamp < part_end and part_end_flag is not True:
+				speaking_flag = 1
 			else:
-				silence_flag = 1
-			row.append(str(silence_flag))
+				speaking_flag = 0
+			if int_start <= timestamp < int_end and int_end_flag is not True:
+				int_flag = 1
+			else:
+				int_flag = 0
+			row.append(str(speaking_flag))
+			row.append(str(int_flag))
 			modified_rows.append(row)
-			if timestamp > current_end:
-				if silence_list[-1] == current_end:
-					end_flag = True
+
+			if timestamp > part_end:
+				if part_timestamps[-1]['end'] == part_end:
+					part_end_flag = True
 				else:
-					current_start = silence_list[period_index]
-					current_end = silence_list[period_index + 1]
-					period_index += 2
+					part_start = part_timestamps[part_index]['start']
+					part_end = part_timestamps[part_index]['end']
+					part_index += 1
+			if timestamp > int_end:
+				if int_timestamps[-1]['end'] == int_end:
+					int_end_flag = True
+				else:
+					int_start = int_timestamps[int_index]['start']
+					int_end = int_timestamps[int_index]['end']
+					int_index += 1
 		return modified_rows
 
 	# Convert all text to lower case.
@@ -499,25 +534,75 @@ class pipe:
 			
 		self.logger.info("\tSemantic analysis completed.")
 
-	# Output silent periods from participant audio to file (used for OpenFace analysis).
-	def silence_detect(self, stop_d):
-		self.output_name = self.participant_name + "_audio"
-		self.log_dir = self.participant_dir + r'\logs'
-		try:
-			os.mkdir(self.log_dir)
-		except OSError:
-			self.logger.debug("\tThe log directory already exists. Existing logs will be overwritten.")
-		self.output_sr = f"{self.participant_dir}\\{self.participant_name}_silences.txt"
-		if self.audio == None:
-			self.logger.warning("\tNo audio files provided.")
+	def convert_video_audio(self, path):
+		audio_codec = "_converted.wav"
+		save_path = os.path.splitext(path)[0] + audio_codec
+		command = f'ffmpeg -y -i "{path}" -vn "{save_path}"'
+		exit_c, output = subprocess.getstatusoutput(command)
+		if exit_c != 0:
+			print(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+			sys.exit(1)
+		return save_path
+
+	def minimum_silences(self, timestamps):
+		timestamps_new = [timestamps[0]]
+		for index in range(1,len(timestamps)):
+			timestamp = timestamps[index]
+			if timestamp['start'] - timestamps_new[-1]['end'] < 1.0:
+				timestamps_new[-1] = {'start':timestamps_new[-1]['start'], 'end':timestamp['end']}
+			else:
+				timestamps_new.append(timestamp)
+		return timestamps_new
+	
+	def voice_activity_detection(self, filepath):
+		model = silero_vad.load_silero_vad()
+		convert_path = self.convert_video_audio(filepath)
+		self.sampling_rate, data=read_wav(convert_path) # enter your filename
+		if self.sampling_rate not in [8000, 16000, 32000, 48000]:
+			self.logger.debug("\tSample rate not supported by voice activity detection.")
+			sys.exit(1)
+		wav = silero_vad.read_audio(convert_path, sampling_rate=self.sampling_rate)
+		speech_timestamps = silero_vad.get_speech_timestamps(wav, model, return_seconds=True, 
+													   sampling_rate=self.sampling_rate, 
+													   min_silence_duration_ms = 1000)
+		speech_timestamps = self.minimum_silences(speech_timestamps)
+		return [speech_timestamps, convert_path]
+
+	def strip_audio(self, speech_timestamps, convert_path, save_path, drop_flag):
+		wav = silero_vad.read_audio(convert_path, sampling_rate=self.sampling_rate)
+		timestamp_samples = self.seconds_to_samples(speech_timestamps, self.sampling_rate)
+		if drop_flag:
+			silero_vad.save_audio(save_path, silero_vad.utils_vad.drop_chunks(timestamp_samples, wav), sampling_rate=self.sampling_rate)
 		else:
-			#command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
-			command = f'ffmpeg -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
-			self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
-			exit_c, output = subprocess.getstatusoutput(command)
-			if exit_c != 0:
-				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See {self.output_sr} for detailed error message.'.format(exit_c))
-				sys.exit(1)
+			silero_vad.save_audio(save_path, silero_vad.collect_chunks(timestamp_samples, wav), sampling_rate=self.sampling_rate)
+
+	def seconds_to_samples(self, timestamps: list[dict], sampling_rate: int) -> list[dict]:
+		"""Convert coordinates expressed in seconds to sample coordinates.
+		"""
+		return [{
+			'start': round(stamp['start']) * sampling_rate,
+			'end': round(stamp['end']) * sampling_rate
+			} for stamp in timestamps]
+	
+	# Output silent periods from participant audio to file (used for OpenFace analysis).
+	# def silence_detect(self, stop_d):
+	# 	self.output_name = self.participant_name + "_audio"
+	# 	self.log_dir = self.participant_dir + r'\logs'
+	# 	try:
+	# 		os.mkdir(self.log_dir)
+	# 	except OSError:
+	# 		self.logger.debug("\tThe log directory already exists. Existing logs will be overwritten.")
+	# 	self.output_sr = f"{self.participant_dir}\\{self.participant_name}_silences.txt"
+	# 	if self.audio == None:
+	# 		self.logger.warning("\tNo audio files provided.")
+	# 	else:
+	# 		#command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
+	# 		command = f'ffmpeg -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
+	# 		self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
+	# 		exit_c, output = subprocess.getstatusoutput(command)
+	# 		if exit_c != 0:
+	# 			self.logger.error(f'\tffmpeg returned exit code {exit_c}. See {self.output_sr} for detailed error message.'.format(exit_c))
+	# 			sys.exit(1)
 
 	# Crop the video. This removes the interviewer's face so that OpenFace reliably works on the participant only.
 	def cut_video(self):
@@ -543,10 +628,10 @@ class pipe:
 
 	# Run either/both audio or/and video domains, acll summary generation function.
 	def run_pipe(self):
-		self.silence_detect(5)
-		if self.run_mode != "video":
+		#self.silence_detect(5)
+		if self.run_mode != "Video":
 			self.run_audio()
-		if self.run_mode != "audio":
+		if self.run_mode != "Audio":
 			if not self.no_cut:
 				self.cut_video()
 			self.run_video()
@@ -582,7 +667,7 @@ class pipeParser:
 					raise Exception(f"\t{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
 				if args.mode != video and int_audio == None:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
-				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.no_cut, args.whisper_model])
+				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.vad, args.no_cut, args.whisper_model])
 		return len(all_args), all_args
 
 # Function executed by each process, returns summary list, added to shared queue.
@@ -639,14 +724,15 @@ class DigBioWindow(QMainWindow):
         super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
         loadUi('DigBio.ui', self) # Load the .ui file
         self.show() # Show the GUI
-        self.setWindowTitle('DigBio 1.1')
-        self.setFixedSize(1000, 300)
+        self.setWindowTitle('DigBio 1.2')
+        self.setFixedSize(1100, 550)
 
         # Set default values
         self.pathFolder.setText(os.path.expanduser("~"))
-        self.modeBox.setCurrentText("all")
+        self.modeBox.setCurrentText("All")
         self.verbosityBox.setCurrentText("3")
         self.whisperBox.setCurrentText("base")
+        self.vadBox.setCurrentText("Both")
         self.nocutBox.setChecked(False)
 
         # Set GUI signals
@@ -663,6 +749,7 @@ class DigBioWindow(QMainWindow):
                              mode=self.modeBox.currentText(),
                              verbosity=self.verbosityBox.currentText(),
                              overwrite=self.overwriteBox.isChecked(),
+							 vad = self.vadBox.currentText(),
                              no_cut=self.nocutBox.isChecked(),
                              whisper_model=self.whisperBox.currentText())
 
