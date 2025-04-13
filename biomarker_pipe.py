@@ -12,13 +12,11 @@ import csv
 import shutil
 import multiprocessing
 import nltk
-#import regex as re
 import string
 from nltk.sentiment import SentimentIntensityAnalyzer
 import contractions
 import spacy
 import pandas as pd
-import re
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from argparse import Namespace
@@ -27,6 +25,9 @@ from PyQt5.QtWidgets import *
 from PyQt5.uic import *
 import silero_vad
 from scipy.io.wavfile import read as read_wav
+from scipy.io.wavfile import write as write_wav
+import numpy as np
+from scipy.signal import resample
 
 VERSION = '1.2 with GUI'
 
@@ -52,10 +53,6 @@ class pipe:
 		self.participant_name = os.path.basename(self.participant_dir)
 		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
 		self.summary =  f'{self.participant_dir}\\..\\all_summary.csv'
-		self.part_timestamps = []
-		self.int_timestamps = []
-		self.sampling_rate = 0
-		self.opensmile_audio = self.audio
 		stderrhandler = logging.StreamHandler()
 		filehandler = logging.FileHandler("DigBio.log")
 		filehandler.setLevel(int(self.loglevel))
@@ -93,26 +90,6 @@ class pipe:
 			if os.path.isdir(os.path.join(directory, entry)):
 				participants.append(entry)
 		return participants
-	
-	# Cut silences from audio using ffmpeg. This improves openSMILE results.
-	# def clean_opensmile_audio(self):
-	# 	self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
-	# 	log_file = self.participant_name + "_ffmpeg.log"
-	# 	try:
-	# 		os.mkdir(self.log_dir)
-	# 	except OSError:
-	# 		self.logger.info("\tThe log directory already exists. Existing logs will be overwritten.")
-	# 	if os.path.isfile(f"{self.opensmile_audio}") == False:
-	# 		#command = f'{self.ffmpeg_path}  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
-	# 		command = f'ffmpeg  -i {self.audio} -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-40dB:stop_threshold=-40dB:stop_periods=-1:stop_duration=2" {self.opensmile_audio} > {self.log_dir}\\{log_file} 2>&1'
-	# 		self.logger.debug("\tRunning ffmpeg on participant file using {}.".format(command))
-	# 		exit_c, output = subprocess.getstatusoutput(command)
-	# 		if exit_c != 0:
-	# 			self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-	# 			sys.exit(1)
-	# 		self.logger.info("\tffmpeg has finished successfully.")
-	# 	else:
-	# 		self.logger.info("\tFiles have already been cleaned. Skipping step and continuing...")
 
 	# Run openSMILE, generates both detailed and summary output.
 	def run_opensmile(self):
@@ -157,37 +134,47 @@ class pipe:
 		self.transcript_int = f"{self.participant_dir}\\{self.participant_name}_interviewer_transcript.txt"
 		self.transcript_clean = f"{self.participant_name}_transcript.txt"
 		self.transcript_int_clean = f"{self.participant_name}_interviewer_transcript.txt"
+		if self.vad != 'None':
+			whisper_audio = self.opensmile_audio
+		else:
+			whisper_audio = self.audio
 		if os.path.isfile(self.transcript):
 			self.logger.info("\tTranscript for this participant already exists. Skipping transcription...")
 		else:
-			linux_audio = self.opensmile_audio.replace('\\','/')
+			linux_audio = whisper_audio.replace('\\','/')
 			command = f'{self.whisper_path} {linux_audio} -f txt --model {model} --language English --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
 			self.logger.debug("\tRunning whisper on participant file using {}.".format(command))
 			subprocess.check_output(command, shell=True)
-			command = f'ren {self.opensmile_audio[:-4]}.txt {self.transcript_clean}'
+			command = f'ren {whisper_audio[:-4]}.txt {self.transcript_clean}'
 			subprocess.check_output(command, shell=True)
 			self.logger.info(f"\twhisper (participant {self.participant_name}) has finished successfully.")
 		if self.audio_interviewer is not None:
+			if self.vad != 'None':
+				whisper_interviewer_audio = self.interviewer_cleaned_audio
+			else:
+				whisper_interviewer_audio = self.audio_interviewer
 			if os.path.isfile(self.transcript_int):
 				self.logger.info("\tTranscript for this interviewer already exists. Skipping transcription...")
 			else:
-				linux_audio = self.audio_interviewer.replace('\\','/')
+				linux_audio = whisper_interviewer_audio.replace('\\','/')
 				command = f'{self.whisper_path} {linux_audio} -f txt --model {model} --language English --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
 				self.logger.debug("\tRunning whisper on interviewer file using {}.".format(command))
 				subprocess.check_output(command, shell=True)
-				command = f'ren {self.audio_interviewer[:-4]}.txt {self.transcript_int_clean}'
+				command = f'ren {whisper_interviewer_audio[:-4]}.txt {self.transcript_int_clean}'
 				subprocess.check_output(command, shell=True)
 				self.logger.info(f"\twhisper (interviewer) {self.participant_name} has finished successfully.")
-	
-	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.
-	def run_audio(self):
-		if self.vad != 'None':
-			self.part_timestamps, self.audio_convert = self.voice_activity_detection(self.audio)
-			self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
-			self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
-			self.strip_audio(self.part_timestamps, self.audio_convert, self.opensmile_audio, False)
 
-		#self.clean_opensmile_audio()
+	def run_VAD(self):
+		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
+		self.interviewer_cleaned_audio = self.participant_dir + '\\' + self.participant_name + "_interviewer_cleaned.wav"
+		self.part_timestamps, self.audio_convert = self.voice_activity_detection(self.audio)
+		self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
+		self.strip_audio(self.part_timestamps, self.audio_convert, self.opensmile_audio, False)
+		self.strip_audio(self.int_timestamps, self.audio_interviewer_convert, self.interviewer_cleaned_audio, False)
+		self.logger.info("\tVAD has finished successfully.")
+
+	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.	
+	def run_audio(self):
 		self.log_dir = self.participant_dir + r'\logs'
 		self.run_opensmile()
 		self.run_whisper(self.whisper_model)
@@ -220,7 +207,6 @@ class pipe:
 			rows = list(reader)
 			self.video_len = float(rows[-1][2].strip())
 		if self.audio is not None and self.vad != 'None':
-			#part_silence_list = self.parse_silence_file(self.output_sr)
 			edited_rows = self.check_silence_periods(self.part_timestamps, self.int_timestamps, rows)
 			audio_off = 0
 		else:
@@ -253,7 +239,7 @@ class pipe:
 			self.logger.info("\tParticipant's summary file alredy exists. Skipping...")
 		self.header_list = []
 		self.content_list = []
-		if self.run_mode != "video":
+		if self.run_mode != "Video":
 			with open(self.nltk_out, 'r') as f:
 				reader = list(csv.reader(f))
 				self.header_list += reader[0]
@@ -262,7 +248,7 @@ class pipe:
 				reader = list(csv.reader(f))
 				self.header_list += (reader[0])
 				self.content_list += (reader[1])
-		if self.run_mode != "audio":
+		if self.run_mode != "Audio":
 			with open(self.openface_out, 'r') as f:
 				reader = list(csv.reader(f))
 				self.header_list += (reader[0])
@@ -271,19 +257,6 @@ class pipe:
 			writer = csv.writer(f)
 			writer.writerow(self.header_list)
 			writer.writerow(self.content_list)
-
-	# Create list of silent periods from participant audio. Used for OpenFace analysis.
-	# def parse_silence_file(self, file_path):
-	# 	silence_list = []
-	# 	with open(file_path, 'r') as file:
-	# 		for line in file:
-	# 				match = re.search(r'silence_end: (\d+\.\d+).*silence_duration: (\d+\.\d+)', line)
-	# 				if match:
-	# 					end = float(match.group(1))
-	# 					dur = float(match.group(2))
-	# 					start = end - dur
-	# 					silence_list += [start,end]
-	# 	return silence_list
 
 	# Parse OpenFace output file and count activation of all binary action units. Counts for silent, non-silent and all periods.
 	def count_binary_aus(self, rows, audio_off):
@@ -394,10 +367,6 @@ class pipe:
 		nlp = spacy.load("en_core_web_sm")
 		sentences = [sent.text.strip() for sent in nlp(all_text).sents]
 
-		# Similarity preprocessing analysis
-		#vectorizer = TfidfVectorizer()
-		#X = vectorizer.fit_transform(sentences)
-
 		# Initializing the Sentence Transformer model
 		model = SentenceTransformer('all-mpnet-base-v2')
 
@@ -448,7 +417,6 @@ class pipe:
 		# Remove punctuation
 		translator = str.maketrans('','', string.punctuation)
 		fixed_text = all_text.translate(translator)
-		#fixed_text = re.sub(r'[^\w\s]','',all_text)
 
 		# Get rid of contractions like I'm, it's, can't ...
 		words = nltk.tokenize.word_tokenize(fixed_text)
@@ -534,15 +502,12 @@ class pipe:
 			
 		self.logger.info("\tSemantic analysis completed.")
 
-	def convert_video_audio(self, path):
-		audio_codec = "_converted.wav"
-		save_path = os.path.splitext(path)[0] + audio_codec
+	def convert_video_audio(self, path, save_path):
 		command = f'ffmpeg -y -i "{path}" -vn "{save_path}"'
 		exit_c, output = subprocess.getstatusoutput(command)
 		if exit_c != 0:
 			print(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
 			sys.exit(1)
-		return save_path
 
 	def minimum_silences(self, timestamps):
 		timestamps_new = [timestamps[0]]
@@ -556,14 +521,27 @@ class pipe:
 	
 	def voice_activity_detection(self, filepath):
 		model = silero_vad.load_silero_vad()
-		convert_path = self.convert_video_audio(filepath)
-		self.sampling_rate, data=read_wav(convert_path) # enter your filename
-		if self.sampling_rate not in [8000, 16000, 32000, 48000]:
-			self.logger.debug("\tSample rate not supported by voice activity detection.")
-			sys.exit(1)
+		audio_codec = "_converted.wav"
+		convert_path = os.path.splitext(filepath)[0] + audio_codec
+		if os.path.isfile(f"{convert_path}") == False:
+			self.convert_video_audio(filepath, convert_path)
+			self.sampling_rate, data=read_wav(convert_path)
+			if self.sampling_rate not in [8000, 16000, 32000, 48000]:
+				self.logger.info("\tSample rate not supported by voice activity detection. " \
+				"Automatic resampling to 16kHz.")
+				origin_num_samples, origin_num_channels = data.shape
+				new_samps = int(origin_num_samples * 16000/self.sampling_rate)
+				# resampling
+				target_audio_scipy = resample(data[:,0], new_samps).astype(int)
+				target_audio_scipy = np.array(target_audio_scipy, np.int16)
+				write_wav(convert_path, 16000, target_audio_scipy)
+				self.sampling_rate = 16000
+		else:
+			self.sampling_rate, data=read_wav(convert_path)
+
 		wav = silero_vad.read_audio(convert_path, sampling_rate=self.sampling_rate)
-		speech_timestamps = silero_vad.get_speech_timestamps(wav, model, return_seconds=True, 
-													   sampling_rate=self.sampling_rate, 
+		speech_timestamps = silero_vad.get_speech_timestamps(wav, model, return_seconds=True,
+													   sampling_rate=self.sampling_rate,
 													   min_silence_duration_ms = 1000)
 		speech_timestamps = self.minimum_silences(speech_timestamps)
 		return [speech_timestamps, convert_path]
@@ -583,26 +561,6 @@ class pipe:
 			'start': round(stamp['start']) * sampling_rate,
 			'end': round(stamp['end']) * sampling_rate
 			} for stamp in timestamps]
-	
-	# Output silent periods from participant audio to file (used for OpenFace analysis).
-	# def silence_detect(self, stop_d):
-	# 	self.output_name = self.participant_name + "_audio"
-	# 	self.log_dir = self.participant_dir + r'\logs'
-	# 	try:
-	# 		os.mkdir(self.log_dir)
-	# 	except OSError:
-	# 		self.logger.debug("\tThe log directory already exists. Existing logs will be overwritten.")
-	# 	self.output_sr = f"{self.participant_dir}\\{self.participant_name}_silences.txt"
-	# 	if self.audio == None:
-	# 		self.logger.warning("\tNo audio files provided.")
-	# 	else:
-	# 		#command = f'{self.ffmpeg_path} -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
-	# 		command = f'ffmpeg -i "{self.audio}" -af "silencedetect=d={stop_d}" -f null - > {self.output_sr} 2>&1'
-	# 		self.logger.debug("\tRunning ffmpeg detection on participant file using {}.".format(command))
-	# 		exit_c, output = subprocess.getstatusoutput(command)
-	# 		if exit_c != 0:
-	# 			self.logger.error(f'\tffmpeg returned exit code {exit_c}. See {self.output_sr} for detailed error message.'.format(exit_c))
-	# 			sys.exit(1)
 
 	# Crop the video. This removes the interviewer's face so that OpenFace reliably works on the participant only.
 	def cut_video(self):
@@ -628,7 +586,8 @@ class pipe:
 
 	# Run either/both audio or/and video domains, acll summary generation function.
 	def run_pipe(self):
-		#self.silence_detect(5)
+		if self.vad != 'None':
+			self.run_VAD()
 		if self.run_mode != "Video":
 			self.run_audio()
 		if self.run_mode != "Audio":
