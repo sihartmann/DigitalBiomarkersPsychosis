@@ -1,6 +1,7 @@
 ﻿Name,Description,Group
 ID,Subject ID (extracted from folder name),Subject information
-avg sentence len,Average sentence length in speech of participant,Speech information
+max sentence length,Maximum sentence length (words) in speech of participant,Speech information
+avg sentence len,Average sentence length (words) in speech of participant,Speech information
 total num sent,Total number of sentences,Speech information
 neg sent,Average negative sentiment in speech of participant,Sentiment scores
 neu sent,Average netural sentiment in speech of participant,Sentiment scores
