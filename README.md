@@ -74,7 +74,7 @@ Start interface either by using PowerShell
 ```
 or by double-clicking the biomarker_pipe.exe file.
 
-![GUI design](/figures/DigBio_GUI.PNG)
+![GUI design](/figures/DigBio_GUI.png)
 
 Select path to interviews folder and specify all other parameters with the dropdown menu.
 - Mode: Run only audio, video or both
