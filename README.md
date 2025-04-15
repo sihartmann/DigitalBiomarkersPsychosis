@@ -45,6 +45,7 @@ Updates:
     - Added Silero Voice Activity Detection to pipeline
     - Updated GUI to integrate VAD option and new design
     - Added max sentence length as feature
+    - Added min, max, and variance of semantic similarity as features
 
 ## INSTALLATION
 - Download latest release ([here](https://github.com/sihartmann/DigitalBiomarkersPsychosis/releases/tag/v1.2_GUI)) and extract content to your preferred destination.
