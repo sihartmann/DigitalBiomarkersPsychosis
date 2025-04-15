@@ -7,7 +7,10 @@ neg sent,Average negative sentiment in speech of participant,Sentiment scores
 neu sent,Average netural sentiment in speech of participant,Sentiment scores
 pos sent,Average positive sentiment in speech of participant,Sentiment scores
 comp sent,Average complete sentiment in speech of participant,Sentiment scores
+max sim score,Maximum semantic similarity between neighboring sentences in speech of participant,Semantic coherence
+min sim score,Minimum semantic similarity between neighboring sentences in speech of participant,Semantic coherence
 avg sim score,Average semantic similarity between neighboring sentences in speech of participant,Semantic coherence
+var sim score,Variance of semantic similarity between neighboring sentences in speech of participant,Semantic coherence
 part_words/total_words,Proportion of spoken words by participant in relation to all spoken words by interviewer and participant,Speech information
 ADJ,Total number of adjectives used by participant,Part-of-speech tagging
 ADP,Total number of adposition used by participant,Part-of-speech tagging

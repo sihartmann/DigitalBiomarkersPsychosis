@@ -77,11 +77,11 @@ class pipe:
 		self.whisper_path = r"Whisper-OpenAI_r136\Whisper-OpenAI\whisper.exe"
 		if not os.path.isfile(self.whisper_path):
 			self.logger.error("\tMissing dependency: whisper.")
-			sys.exit(1)
+			#sys.exit(1)
 		self.feat_detect =  r"OpenFace_2.2.0_win_x64\FeatureExtraction.exe"
 		if not os.path.isfile(self.feat_detect):
 			self.logger.error("\tMissing dependency: openface.")
-			sys.exit(1)
+			#sys.exit(1)
 
 	# Parse through Interviews directory and return list of all participant names.
 	def get_participants(self, directory):
@@ -402,7 +402,10 @@ class pipe:
 					neighbour_scores.append(similarity_matrix[i][j])
 		avg_sim_score = 0
 		if neighbour_scores:
+			max_sim_score = max(neighbour_scores)
+			min_sim_score = min(neighbour_scores)
 			avg_sim_score = sum(neighbour_scores)/len(neighbour_scores)
+			var_sim_score = np.var(neighbour_scores)
 
 		# Do sentiment scores per sentence
 		sia = SentimentIntensityAnalyzer()
@@ -488,7 +491,9 @@ class pipe:
 				val = dep_counter.get(key,0)
 				DEP_val_list.append(val)
 
-			data = ["max sentence len", "avg sentence len", "total num sent", "neg sent", "neu sent", "pos sent", "comp sent","avg sim score", "part_words/total_words"]
+			data = ["max sentence len", "avg sentence len", "total num sent", "neg sent", "neu sent",
+		   "pos sent", "comp sent","max sim score", "min sim score", "avg sim score", 
+		   "var sim score", "part_words/total_words"]
 			col_names = data + POS_tags + TAG_tags + DEP_tags
 			head = [col for col in col_names]
 			avg_sentence_length = sum(len(sent.split()) for sent in sentences) / len(sentences)
@@ -497,7 +502,9 @@ class pipe:
 			POS_val_list_norm = [x / len(sentences) for x in POS_val_list]
 			TAG_val_list_norm = [x / len(sentences) for x in TAG_val_list]
 			DEP_val_list_norm = [x / len(sentences) for x in DEP_val_list]
-			body = [max_sentence_length] + [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + [avg_sim_score] + [word_ratio]+ POS_val_list_norm + TAG_val_list_norm + DEP_val_list_norm
+			body = [max_sentence_length] + [avg_sentence_length] + [len(sentences)] + overall_sentiment_list + \
+			[max_sim_score]  + [min_sim_score]  + [avg_sim_score]  + [var_sim_score] + \
+			[word_ratio]+ POS_val_list_norm + TAG_val_list_norm + DEP_val_list_norm
 			writer.writerow(body)
 			
 		self.logger.info("\tSemantic analysis completed.")
@@ -529,7 +536,7 @@ class pipe:
 			if self.sampling_rate not in [8000, 16000, 32000, 48000]:
 				self.logger.info("\tSample rate not supported by voice activity detection. " \
 				"Automatic resampling to 16kHz.")
-				origin_num_samples, origin_num_channels = data.shape
+				origin_num_samples, _  = data.shape
 				new_samps = int(origin_num_samples * 16000/self.sampling_rate)
 				# resampling
 				target_audio_scipy = resample(data[:,0], new_samps).astype(int)
@@ -542,9 +549,8 @@ class pipe:
 		wav = silero_vad.read_audio(convert_path, sampling_rate=self.sampling_rate)
 		speech_timestamps = silero_vad.get_speech_timestamps(wav, model, return_seconds=True,
 													   sampling_rate=self.sampling_rate,
-													   min_silence_duration_ms = 1000)
-		speech_timestamps = self.minimum_silences(speech_timestamps)
-		return [speech_timestamps, convert_path]
+													   min_silence_duration_ms = 1000,
+													   min_speech_duration_ms = 500)
 
 	def strip_audio(self, speech_timestamps, convert_path, save_path, drop_flag):
 		wav = silero_vad.read_audio(convert_path, sampling_rate=self.sampling_rate)
