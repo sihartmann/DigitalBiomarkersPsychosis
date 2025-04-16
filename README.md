@@ -24,12 +24,10 @@ Initial version including:
     - Facial movement analysis for speaking vs non-speaking periods
     - Automated writing of output data into summary file
 
-* 1.0 with GUI
-Updates:
+* 1.0 with GUI:
     - Added Graphical User Interface to start pipeline
 
 * 1.1 with GUI
-Updates:
     - All POS features are normalized according to the total number of sentences
     - Added Penn Treebank POS Tags
     - Added frequency of first, second, and third person personal pronouns
@@ -41,14 +39,12 @@ Updates:
     - Updated dictionary
 
 * 1.2.1 with GUI
-Updates:
     - Added Silero Voice Activity Detection to pipeline
     - Updated GUI to integrate VAD option and new design
     - Added max sentence length as feature
     - Added min, max, and variance of semantic similarity as features
 
 * 1.2.2 with GUI
-    Updates:
         - Whisper timestamps extracting start and end timestamps for segments and/or words in transcripts using [whisper-timestamped](https://github.com/linto-ai/whisper-timestamped)
 
 ## INSTALLATION
