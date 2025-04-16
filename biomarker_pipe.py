@@ -28,6 +28,10 @@ from scipy.io.wavfile import read as read_wav
 from scipy.io.wavfile import write as write_wav
 import numpy as np
 from scipy.signal import resample
+import whisper_timestamped
+import whisper_timestamped.make_subtitles
+from whisper_timestamped.transcribe import write_csv
+
 
 VERSION = '1.2 with GUI'
 
@@ -42,8 +46,9 @@ class pipe:
 		self.loglevel = args[3]
 		self.run_mode = args[4]
 		self.vad = args[5]
-		self.no_cut = args[6]
-		self.whisper_model = args[7]
+		self.whisper_time = args[6]
+		self.no_cut = args[7]
+		self.whisper_model = args[8]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
@@ -163,21 +168,64 @@ class pipe:
 				command = f'ren {whisper_interviewer_audio[:-4]}.txt {self.transcript_int_clean}'
 				subprocess.check_output(command, shell=True)
 				self.logger.info(f"\twhisper (interviewer) {self.participant_name} has finished successfully.")
+	
+	def flatten(self, list_of_lists, key = None):
+		for sublist in list_of_lists:
+			for item in sublist.get(key, []) if key else sublist:
+				yield item
+		
+	def run_whisper_timestamped(self, model_type):
+		outname = os.path.splitext(self.transcript)[0] + '_timestamps'
+		if os.path.isfile(outname + '.csv') or os.path.isfile(outname + '.srt'):
+			self.logger.info("\tTimestamps for the transcript of this participant already exists. Skipping timestamps...")
+		else:
+			audio = whisper_timestamped.load_audio(self.audio_convert)
+			model = whisper_timestamped.load_model(model_type, device="cpu")
+			self.logger.debug(f"\tRunning whisper timestamps on participant {self.participant_name}.")
+			result = whisper_timestamped.transcribe(model, audio, language="en")
+
+			if self.whisper_time == "Segments":
+				with open(outname + '.csv', 'w', newline='') as csvfile:
+					write_csv(result["segments"], csvfile)
+			else:
+				with open(outname + '.srt', "w", encoding="utf-8") as srt:
+					whisper_timestamped.make_subtitles.write_srt(self.flatten(result["segments"], "words"), file=srt)
+			self.logger.info(f"\tWhisper timestamps (participant) {self.participant_name} has finished successfully.")
+
+		if self.audio_interviewer is not None:
+			outname = os.path.splitext(self.transcript)[0] + '_interviewer_timestamps'
+			if os.path.isfile(outname + '.csv') or os.path.isfile(outname + '.srt'):
+				self.logger.info("\tTimestamps for the transcript of this interviewer already exists. Skipping timestamps...")
+			else:
+				audio = whisper_timestamped.load_audio(self.audio_interviewer_convert)
+				self.logger.debug(f"\tRunning whisper timestamps on interviewer {self.participant_name}.")
+				result = whisper_timestamped.transcribe(model, audio, language="en")
+
+				if self.whisper_time == "Segments":
+					with open(outname + '.csv', 'w', newline='') as csvfile:
+						write_csv(result["segments"], csvfile)
+				else:
+					with open(outname + '.srt', "w", encoding="utf-8") as srt:
+						whisper_timestamped.make_subtitles.write_srt(self.flatten(result["segments"], "words"), file=srt)
+			self.logger.info(f"\tWhisper timestamps (interviewer) {self.participant_name} has finished successfully.")
 
 	def run_VAD(self):
 		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
+		self.logger.debug(f"\tRunning VAD on participant {self.participant_name}.")
 		self.interviewer_cleaned_audio = self.participant_dir + '\\' + self.participant_name + "_interviewer_cleaned.wav"
 		self.part_timestamps, self.audio_convert = self.voice_activity_detection(self.audio)
 		self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
 		self.strip_audio(self.part_timestamps, self.audio_convert, self.opensmile_audio, False)
 		self.strip_audio(self.int_timestamps, self.audio_interviewer_convert, self.interviewer_cleaned_audio, False)
-		self.logger.info("\tVAD has finished successfully.")
+		self.logger.info(f"\tVAD for participant {self.participant_name} has finished successfully.")
 
 	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.	
 	def run_audio(self):
 		self.log_dir = self.participant_dir + r'\logs'
 		self.run_opensmile()
 		self.run_whisper(self.whisper_model)
+		if self.whisper_time != "None" and self.vad != "None":
+			self.run_whisper_timestamped(self.whisper_model)
 		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
 
 	# Video domain of pipeline: OpenFace (including downstream analysis).
@@ -551,6 +599,9 @@ class pipe:
 													   sampling_rate=self.sampling_rate,
 													   min_silence_duration_ms = 1000,
 													   min_speech_duration_ms = 500)
+		
+		speech_timestamps = self.minimum_silences(speech_timestamps)
+		return [speech_timestamps, convert_path]
 
 	def strip_audio(self, speech_timestamps, convert_path, save_path, drop_flag):
 		wav = silero_vad.read_audio(convert_path, sampling_rate=self.sampling_rate)
@@ -632,7 +683,7 @@ class pipeParser:
 					raise Exception(f"\t{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
 				if args.mode != video and int_audio == None:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
-				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.vad, args.no_cut, args.whisper_model])
+				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.vad, args.whisper_time, args.no_cut, args.whisper_model])
 		return len(all_args), all_args
 
 # Function executed by each process, returns summary list, added to shared queue.
@@ -698,6 +749,7 @@ class DigBioWindow(QMainWindow):
         self.verbosityBox.setCurrentText("3")
         self.whisperBox.setCurrentText("base")
         self.vadBox.setCurrentText("Both")
+        self.timestampBox.setCurrentText("None")
         self.nocutBox.setChecked(False)
 
         # Set GUI signals
@@ -715,6 +767,7 @@ class DigBioWindow(QMainWindow):
                              verbosity=self.verbosityBox.currentText(),
                              overwrite=self.overwriteBox.isChecked(),
 							 vad = self.vadBox.currentText(),
+							 whisper_time = self.timestampBox.currentText(), 
                              no_cut=self.nocutBox.isChecked(),
                              whisper_model=self.whisperBox.currentText())
 

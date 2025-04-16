@@ -295,7 +295,7 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0" colspan="2">
+      <item row="1" column="0">
        <widget class="QLabel" name="label">
         <property name="text">
          <string>Interview folder</string>
@@ -329,7 +329,7 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0" colspan="3">
+      <item row="4" column="0" colspan="4">
        <widget class="QGroupBox" name="groupBox">
         <property name="palette">
          <palette>
@@ -575,7 +575,7 @@
         </layout>
        </widget>
       </item>
-      <item row="5" column="2">
+      <item row="5" column="3">
        <widget class="QLabel" name="label_12">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -588,8 +588,8 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="0" colspan="3">
-       <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item row="6" column="0" colspan="4">
+       <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
          <widget class="QGroupBox" name="groupBox_2">
           <property name="styleSheet">
@@ -689,6 +689,50 @@
              </property>
             </widget>
            </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="label_10">
+             <property name="palette">
+              <palette>
+               <active>
+                <colorrole role="WindowText">
+                 <brush brushstyle="SolidPattern">
+                  <color alpha="255">
+                   <red>255</red>
+                   <green>255</green>
+                   <blue>255</blue>
+                  </color>
+                 </brush>
+                </colorrole>
+               </active>
+               <inactive>
+                <colorrole role="WindowText">
+                 <brush brushstyle="SolidPattern">
+                  <color alpha="255">
+                   <red>255</red>
+                   <green>255</green>
+                   <blue>255</blue>
+                  </color>
+                 </brush>
+                </colorrole>
+               </inactive>
+               <disabled>
+                <colorrole role="WindowText">
+                 <brush brushstyle="SolidPattern">
+                  <color alpha="255">
+                   <red>120</red>
+                   <green>120</green>
+                   <blue>120</blue>
+                  </color>
+                 </brush>
+                </colorrole>
+               </disabled>
+              </palette>
+             </property>
+             <property name="text">
+              <string>Whisper Timestamps</string>
+             </property>
+            </widget>
+           </item>
            <item row="1" column="0">
             <widget class="QComboBox" name="whisperBox">
              <property name="currentText">
@@ -734,6 +778,28 @@
              <item>
               <property name="text">
                <string>VAD</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>None</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QComboBox" name="timestampBox">
+             <property name="currentText">
+              <string>Segments</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>Segments</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Words</string>
               </property>
              </item>
              <item>
@@ -863,7 +929,7 @@
         </property>
        </widget>
       </item>
-      <item row="8" column="0" colspan="2">
+      <item row="8" column="0">
        <widget class="QPushButton" name="startButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
