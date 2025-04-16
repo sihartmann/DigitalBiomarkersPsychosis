@@ -40,12 +40,16 @@ Updates:
     - Updated UI file to version 1.1
     - Updated dictionary
 
-* 1.2 with GUI
+* 1.2.1 with GUI
 Updates:
     - Added Silero Voice Activity Detection to pipeline
     - Updated GUI to integrate VAD option and new design
     - Added max sentence length as feature
     - Added min, max, and variance of semantic similarity as features
+
+* 1.2.2 with GUI
+    Updates:
+        - Whisper timestamps extracting start and end timestamps for segments and/or words in transcripts using [whisper-timestamped](https://github.com/linto-ai/whisper-timestamped)
 
 ## INSTALLATION
 - Download latest release ([here](https://github.com/sihartmann/DigitalBiomarkersPsychosis/releases/tag/v1.2_GUI)) and extract content to your preferred destination.
@@ -83,7 +87,8 @@ Select path to interviews folder and specify all other parameters with the dropd
 - Overwrite old results: Start pipeline from scratch. Will delete all previously generated files, so use with caution.
 - Skip video cropping: Check if not using HIPAA zoom. You may need to crop videos manually to only show one person.
 - Whisper model: Select different sized models for transcription.
-- VAD: Select Voice Activity Detection mode - 'None' for no detection, 'VAD' for Voice Activity Detection, and 'Both' for high level audio results on only speech parts and low level information on whole audio.
+- VAD: Select Voice Activity Detection mode - 'None' for no detection, 'VAD' for Voice Activity Detection, or 'Both' for high level audio results on only speech parts and low level information on whole audio.
+- Whisper timestamps: Select Whisper timestamp mode - 'None' for no timestamps, 'Segment' for start and end timestamps of segments such as sentences or phrases, or 'Words' for start and end timestamps of words.
 
 The popup window will close once the pipeline has finished.
 
