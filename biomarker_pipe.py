@@ -33,7 +33,7 @@ import whisper_timestamped.make_subtitles
 from whisper_timestamped.transcribe import write_csv
 
 
-VERSION = '1.2 with GUI'
+VERSION = '1.3 with GUI'
 
 ## Main processing class.
 class pipe:
@@ -43,12 +43,14 @@ class pipe:
 		self.audio = args[0].replace('/','\\')
 		self.video = args[1].replace('/', '\\')
 		self.audio_interviewer = args[2].replace('/', '\\')
+		self.video_interviewer = ""
 		self.loglevel = args[3]
 		self.run_mode = args[4]
 		self.vad = args[5]
 		self.whisper_time = args[6]
 		self.no_cut = args[7]
 		self.whisper_model = args[8]
+		self.interviewer_analysis = args[9]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
@@ -57,9 +59,12 @@ class pipe:
 			raise Exception("You must provide video and/or audio files.")
 		self.participant_name = os.path.basename(self.participant_dir)
 		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
+		self.nltk_out_interviewer = f'{self.participant_dir}\\{self.participant_name}_interviewer_nltk_results.csv'
 		self.summary =  f'{self.participant_dir}\\..\\all_summary.csv'
+		if self.interviewer_analysis:
+			self.interviewer_summary = f'{self.participant_dir}\\..\\all_interviewer_summary.csv'
 		stderrhandler = logging.StreamHandler()
-		filehandler = logging.FileHandler("DigBio.log")
+		filehandler = logging.FileHandler(f"{os.path.dirname(self.participant_dir)}\\DigBio.log")
 		filehandler.setLevel(int(self.loglevel))
 		filehandler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
 		stderrhandler.setLevel(int(self.loglevel))
@@ -126,6 +131,36 @@ class pipe:
 			df = pd.DataFrame(features, columns=smile_summary.feature_names)
 			df.to_csv(self.f_summary, index=False)
 			self.logger.info("\tOpensmile has completed successfully.")
+		
+		if self.interviewer_analysis:
+			opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
+			self.f_interviewer_summary = f"{opensmile_path}_summary_interviewer_opensmile.csv"
+			f_individual = f"{opensmile_path}_interviewer_opensmile.csv"
+			if os.path.isfile(f_individual) and os.path.isfile(self.f_interviewer_summary):
+				self.logger.info("\tOutput files already exist. Skipping interviewer OpenSmile...")
+			else:
+				self.logger.info(f"\tStarting opensmile for interviewer of {self.participant_name}.")
+				smile = opensmile.Smile(
+					feature_set = opensmile.FeatureSet.eGeMAPSv02,
+					feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
+				)
+				if self.vad == 'VAD':
+					features = smile.process_file(self.interviewer_cleaned_audio)
+				else:
+					features = smile.process_file(self.audio_interviewer)
+				df = pd.DataFrame(features, columns=smile.feature_names)
+				df.to_csv(f_individual, index=False)
+
+				smile_summary = opensmile.Smile(
+					feature_set = opensmile.FeatureSet.eGeMAPSv02
+				)
+				if self.vad != 'None':
+					features = smile_summary.process_file(self.interviewer_cleaned_audio)
+				else:
+					features = smile_summary.process_file(self.audio_interviewer)
+				df = pd.DataFrame(features, columns=smile_summary.feature_names)
+				df.to_csv(self.f_interviewer_summary, index=False)
+				self.logger.info("\tOpensmile has completed successfully.")			
 
 	# Transcribe both interviewer and participant audio using specified model.
 	def run_whisper(self, model):
@@ -168,6 +203,9 @@ class pipe:
 				command = f'ren {whisper_interviewer_audio[:-4]}.txt {self.transcript_int_clean}'
 				subprocess.check_output(command, shell=True)
 				self.logger.info(f"\twhisper (interviewer) {self.participant_name} has finished successfully.")
+		else:
+			if self.interviewer_analysis:
+				self.logger.warning("\tNo interviewer audio found. Please provide interviewer audio or deactivate interviewer analysis.")
 	
 	def flatten(self, list_of_lists, key = None):
 		for sublist in list_of_lists:
@@ -208,6 +246,10 @@ class pipe:
 					with open(outname + '.srt', "w", encoding="utf-8") as srt:
 						whisper_timestamped.make_subtitles.write_srt(self.flatten(result["segments"], "words"), file=srt)
 			self.logger.info(f"\tWhisper timestamps (interviewer) {self.participant_name} has finished successfully.")
+		else:
+			if self.interviewer_analysis:
+				self.logger.warning("\tNo interviewer audio found. Please provide interviewer audio or deactivate interviewer analysis.")
+
 
 	def run_VAD(self):
 		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
@@ -217,7 +259,7 @@ class pipe:
 		self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
 		self.strip_audio(self.part_timestamps, self.audio_convert, self.opensmile_audio, False)
 		self.strip_audio(self.int_timestamps, self.audio_interviewer_convert, self.interviewer_cleaned_audio, False)
-		self.logger.info(f"\tVAD for participant {self.participant_name} has finished successfully.")
+		self.logger.info(f"\tVAD for participant {self.participant_name} and interviewer has finished successfully.")
 
 	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.	
 	def run_audio(self):
@@ -226,11 +268,14 @@ class pipe:
 		self.run_whisper(self.whisper_model)
 		if self.whisper_time != "None" and self.vad != "None":
 			self.run_whisper_timestamped(self.whisper_model)
-		self.run_nltk(f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out)
+		self.run_nltk(self.transcript, f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', 
+				f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out, True)
+		self.run_nltk(self.transcript_int, f'{self.participant_dir}\\{self.participant_name}_nltk_interviewer_results.txt', 
+				f'{self.participant_dir}\\{self.participant_name}_interviewer_sim_scores.csv',
+				self.nltk_out_interviewer, False)
 
 	# Video domain of pipeline: OpenFace (including downstream analysis).
-	def run_video(self):
-		openface_out = f'{self.participant_dir}\\{self.participant_name}.csv'
+	def run_video(self, openface_out, video):
 		if os.path.isfile(openface_out):
 			self.logger.info("\tOutput files already exist. Skipping OpenFace...")
 		else:
@@ -244,30 +289,43 @@ class pipe:
 			except OSError:
 				self.logger.debug("\tThe log directory already exists. Existing logs will be overwritten.")
 			log_path = f"{self.log_dir}\\{log_file}"
-			command = f'{self.feat_detect} -f {self.video} -out_dir {self.participant_dir} -of {self.participant_name} > {log_path} 2>&1'
+			command = f'{self.feat_detect} -f {video} -out_dir {self.participant_dir} -of {openface_out} -gaze -pose -aus -3Dfp > {log_path} 2>&1'
 			self.logger.debug(f"\tRunning openface with command {command}")
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
 				self.logger.error(f'\tOpenface returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
 				sys.exit(1)
-		with open(openface_out, 'r') as file:
+
+	# Facial analysis domain of pipeline: Analyse OpenFace output
+	def facial_analysis(self, openface_output, int_flag):
+
+		with open(openface_output, 'r') as file:
 			reader = csv.reader(file)
 			rows = list(reader)
 			self.video_len = float(rows[-1][2].strip())
 		if self.audio is not None and self.vad != 'None':
-			edited_rows = self.check_silence_periods(self.part_timestamps, self.int_timestamps, rows)
+			if int_flag:
+				edited_rows = self.check_silence_periods(self.int_timestamps, self.part_timestamps, rows)
+			else:
+				edited_rows = self.check_silence_periods(self.part_timestamps, self.int_timestamps, rows)
 			audio_off = 0
 		else:
 			edited_rows = rows
 			audio_off = 1
 		au_count = self.count_binary_aus(edited_rows, audio_off)
 		conf_scores = self.confidence_calculation(rows)
-		self.openface_out = f"{self.participant_dir}\\{self.participant_name}_openface_out.csv"
-		with open(f'{self.participant_dir}\\{self.participant_name}.csv', 'w', newline='') as file:
+		if int_flag:
+			self.openface_out_interviewer = f"{self.participant_dir}\\{self.participant_name}_interviewr_openface_out.csv"
+			openface_out = self.openface_out_interviewer
+		else:
+			self.openface_out = f"{self.participant_dir}\\{self.participant_name}_openface_out.csv"
+			openface_out = self.openface_out
+
+		with open(openface_output, 'w', newline='') as file:
 			writer = csv.writer(file)
 			for row in edited_rows:
 				writer.writerow(row)
-		with open(self.openface_out, 'w', newline='') as f:
+		with open(openface_out, 'w', newline='') as f:
 			writer = csv.writer(f)
 			if not audio_off:
 				writer.writerow(["Max confidence", "Min confidence", "Avg confidence", "AU01_c", "AU02_c",  "AU04_c" ,"AU05_c", "AU06_c", "AU07_c", "AU09_c", "AU10_c", "AU12_c",
@@ -281,30 +339,46 @@ class pipe:
 				writer.writerow(conf_scores + au_count[0])
 
 	# Participant sumary file of all results generated.
-	def write_own_summary(self):
-		own_summary = f"{self.participant_dir}\\{self.participant_name}_summary.csv"
+	def write_own_summary(self, int_flag):
+		if int_flag:
+			own_summary = f"{self.participant_dir}\\{self.participant_name}_interviewer_summary.csv"
+			nltk_out = self.nltk_out_interviewer
+			f_summary = self.f_interviewer_summary
+			openface_out = self.openface_out_interviewer
+		else:
+			own_summary = f"{self.participant_dir}\\{self.participant_name}_summary.csv"
+			nltk_out = self.nltk_out
+			f_summary = self.f_summary
+			openface_out = self.openface_out
+
 		if os.path.isfile(own_summary):
 			self.logger.info("\tParticipant's summary file alredy exists. Skipping...")
-		self.header_list = []
-		self.content_list = []
+		header_list = []
+		content_list = []
 		if self.run_mode != "Video":
-			with open(self.nltk_out, 'r') as f:
+			with open(nltk_out, 'r') as f:
 				reader = list(csv.reader(f))
-				self.header_list += reader[0]
-				self.content_list += (reader[1])
-			with open(self.f_summary, 'r') as f:
+				header_list += reader[0]
+				content_list += (reader[1])
+			with open(f_summary, 'r') as f:
 				reader = list(csv.reader(f))
-				self.header_list += (reader[0])
-				self.content_list += (reader[1])
+				header_list += (reader[0])
+				content_list += (reader[1])
 		if self.run_mode != "Audio":
-			with open(self.openface_out, 'r') as f:
+			with open(openface_out, 'r') as f:
 				reader = list(csv.reader(f))
-				self.header_list += (reader[0])
-				self.content_list += (reader[1])
+				header_list += (reader[0])
+				content_list += (reader[1])
 		with open(own_summary, 'w', newline='') as f:
 			writer = csv.writer(f)
-			writer.writerow(self.header_list)
-			writer.writerow(self.content_list)
+			writer.writerow(header_list)
+			writer.writerow(content_list)
+		if int_flag:
+			self.header_list_int = header_list
+			self.content_list_int = content_list
+		else:
+			self.header_list = header_list
+			self.content_list = content_list
 
 	# Parse OpenFace output file and count activation of all binary action units. Counts for silent, non-silent and all periods.
 	def count_binary_aus(self, rows, audio_off):
@@ -313,17 +387,17 @@ class pipe:
 		au_count_speech = [0]*18
 		last_val = [0]*18
 		for row in rows[1:]:
-			for i in range(696, 714):
+			for i in range(520, 537):
 				if int(float(row[i].strip())) == 1:
-					if last_val[i-696] == 0:
-						au_count[i-696] += 1
+					if last_val[i-520] == 0:
+						au_count[i-520] += 1
 						if not audio_off:
 							# Get second to last element indicating participant speech 
 							if int(float(row[-2].strip())) == 1:
-								au_count_speech[i-696] += 1
+								au_count_speech[i-520] += 1
 							elif int(float(row[-2].strip())) == 0:
-								au_count_sil[i-696] += 1
-				last_val[i-696] = int(float(row[i].strip()))
+								au_count_sil[i-520] += 1
+				last_val[i-520] = int(float(row[i].strip()))
 		if not audio_off:
 			return_cts = [au_count, au_count_sil, au_count_speech]
 		else:
@@ -402,11 +476,11 @@ class pipe:
 		return ' '.join(tokens)
 	
 	# Semantic analysis usng spaCy, nltk, ...
-	def run_nltk(self, output_file, lsa_output, csv_output):
-		if not(os.path.isfile(self.transcript) and os.path.isfile(self.transcript_int)):
+	def run_nltk(self, transcript, output_file, lsa_output, csv_output, ratio_flag):
+		if not(os.path.isfile(transcript)):
 			self.logger.error("\tTranscript could not be found. Do not rename or move it.")
 			sys.exit(1)
-		file = self.transcript
+		file = transcript
 		with open(file, 'r') as f:
 			all_text = f.read()
 		self.logger.info(f"\tStarting semantic analysis for participant {self.participant_name}.")
@@ -433,16 +507,22 @@ class pipe:
 		sentences = nltk.tokenize.sent_tokenize(all_text)
 		num_sent = len(sentences)
 		words_num_part = len(nltk.tokenize.word_tokenize(all_text))
-		file = self.transcript
-		if self.audio_interviewer is not None:
-			with open(self.transcript_int, 'r') as f:
-				int_text = f.read()
-			words_num_int = len(nltk.tokenize.word_tokenize(int_text))
-			total_words = words_num_int + words_num_part
-			word_ratio = words_num_part/total_words
+		file = transcript
+		if ratio_flag:
+			if not(os.path.isfile(self.transcript_int)):
+				self.logger.error("\tTranscript could not be found. Do not rename or move it.")
+				sys.exit(1)
+			if self.audio_interviewer is not None:
+				with open(self.transcript_int, 'r') as f:
+					int_text = f.read()
+				words_num_int = len(nltk.tokenize.word_tokenize(int_text))
+				total_words = words_num_int + words_num_part
+				word_ratio = words_num_part/total_words
+			else:
+				word_ratio = "N/A"
 		else:
 			word_ratio = "N/A"
-			
+				
 		neighbour_scores = []
 		for i in range(num_sent-1):
 			for j in range(num_sent -1):
@@ -640,6 +720,22 @@ class pipe:
 				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
 				sys.exit(1)
 		self.video = cropped_video
+		# Crop interviewer when flag is set
+		if self.interviewer_analysis:
+			cropped_video = f'{self.participant_dir}\\{self.participant_name}_interviewer_video.mp4'
+		log_path = f"{self.log_dir}\\{log_file}"
+		if os.path.isfile(cropped_video):
+			self.logger.info("\tInterviewer video has already been cropped. Skipping step and continuing...")
+		else:
+			#command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
+			command = f'ffmpeg -i {self.video} -vf "crop=in_w/2:in_h:0:0"  {cropped_video}>> {log_path} 2>&1'
+			self.logger.debug("\tRunning ffmpeg cropping on interviewer file using {}.".format(command))
+			exit_c, output = subprocess.getstatusoutput(command)
+			if exit_c != 0:
+				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+				sys.exit(1)
+		self.interviewer_video = cropped_video
+
 
 	# Run either/both audio or/and video domains, acll summary generation function.
 	def run_pipe(self):
@@ -650,10 +746,23 @@ class pipe:
 		if self.run_mode != "Audio":
 			if not self.no_cut:
 				self.cut_video()
-			self.run_video()
-		self.write_own_summary()
+			
+			openface_out = f'{self.participant_dir}\\{self.participant_name}.csv'
+			self.run_video(openface_out, self.video)
+			self.facial_analysis(openface_out, False)
+			if self.interviewer_analysis:
+				openface_out = f'{self.participant_dir}\\{self.participant_name}_interviewer.csv'
+				self.run_video(openface_out, self.interviewer_video)
+				self.facial_analysis(openface_out, True)
+
+		self.write_own_summary(False)
+		if self.interviewer_analysis:
+			self.write_own_summary(True)
 		self.logger.info(f"\tPipeline completed for {self.participant_name}.")
-		return [self.summary, self.header_list, self.content_list, self.participant_name]
+		if self.interviewer_analysis:
+			return [self.summary, self.interviewer_summary, self.header_list, self.content_list, self.header_list_int, self.content_list_int, self.participant_name]
+		else:
+			return [self.summary, self.header_list, self.content_list, self.participant_name]
 
 ## Class used only for initial parsing. Splits input up so it can be divided among processes.
 class pipeParser:
@@ -683,7 +792,7 @@ class pipeParser:
 					raise Exception(f"\t{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
 				if args.mode != video and int_audio == None:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
-				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.vad, args.whisper_time, args.no_cut, args.whisper_model])
+				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.vad, args.whisper_time, args.no_cut, args.whisper_model, args.interviewer_analysis])
 		return len(all_args), all_args
 
 # Function executed by each process, returns summary list, added to shared queue.
@@ -721,76 +830,101 @@ def make_summary(queue):
 			if first == None:
 				return False
 			else:
-				file_path = first[0]
-				break
-		with open(file_path, 'w', newline='') as f:
-			writer = csv.writer(f)
-			writer.writerow(["ID"] + first[1])
-			writer.writerow([first[3]] + first[2])
-			while True:
-				item = queue.get()
-				if item == None:
-					break
+				if len(first) == 4:
+					file_path = first[0]
+					int_flag = False
 				else:
-					writer.writerow([item[3]] + item[2])
+					file_path = first[0]
+					file_int_path = first[1]
+					int_flag = True
+				break
+		if int_flag:
+			with (open(file_path, 'w', newline='') as f, open(file_int_path, 'w', newline='') as f_int):
+				writer = csv.writer(f)
+				writer_int = csv.writer(f_int)
+				writer.writerow(["ID"] + first[2])
+				writer.writerow([first[6]] + first[3])
+				writer_int.writerow(["ID"] + first[4])
+				writer_int.writerow([first[6]] + first[5])
+				while True:
+					item = queue.get()
+					if item == None:
+						break
+					else:
+						writer.writerow([item[6]] + item[3])
+						writer_int.writerow([item[6]] + item[5])
+		else:
+			with open(file_path, 'w', newline='') as f:
+				writer = csv.writer(f)
+				writer.writerow(["ID"] + first[1])
+				writer.writerow([first[3]] + first[2])
+				while True:
+					item = queue.get()
+					if item == None:
+						break
+					else:
+						writer.writerow([item[3]] + item[2])
 
 ## GUI class.
 class DigBioWindow(QMainWindow):
-    def __init__(self):
-        super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
-        loadUi('DigBio.ui', self) # Load the .ui file
-        self.show() # Show the GUI
-        self.setWindowTitle('DigBio 1.2')
-        self.setFixedSize(1100, 550)
-
-        # Set default values
-        self.pathFolder.setText(os.path.expanduser("~"))
-        self.modeBox.setCurrentText("All")
-        self.verbosityBox.setCurrentText("3")
-        self.whisperBox.setCurrentText("base")
-        self.vadBox.setCurrentText("Both")
-        self.timestampBox.setCurrentText("None")
-        self.nocutBox.setChecked(False)
+	def __init__(self):
+		super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
+		loadUi('DigBio.ui', self) # Load the .ui file
+		self.show() # Show the GUI
+		self.setWindowTitle('DigBio 1.3')
+		self.setFixedSize(1100, 550)
+		
+		# Set default values
+		self.pathFolder.setText(os.path.expanduser("~"))
+		self.modeBox.setCurrentText("All")
+		self.verbosityBox.setCurrentText("3")
+		self.whisperBox.setCurrentText("base")
+		self.vadBox.setCurrentText("Both")
+		self.timestampBox.setCurrentText("None")
+		self.nocutBox.setChecked(False)
+		self.overwriteBox.setChecked(False)
+		self.interviewer.setChecked(False)
 
         # Set GUI signals
-        self.pathButton.clicked.connect(self.pathButtonClicked)
-        self.startButton.clicked.connect(self.startButtonClicked)
+		self.pathButton.clicked.connect(self.pathButtonClicked)
+		self.startButton.clicked.connect(self.startButtonClicked)
 
-    def pathButtonClicked(self):
-        self.pathFolder.setText(str(QFileDialog.getExistingDirectory(
+	def pathButtonClicked(self):
+		self.pathFolder.setText(str(QFileDialog.getExistingDirectory(
             self,"Select Directory",self.pathFolder.text(),
             QFileDialog.ShowDirsOnly)))
 
-    def startButtonClicked(self):
-        all_args = Namespace(interviews=self.pathFolder.text(), 
+	def startButtonClicked(self):
+		all_args = Namespace(interviews=self.pathFolder.text(), 
                              mode=self.modeBox.currentText(),
                              verbosity=self.verbosityBox.currentText(),
                              overwrite=self.overwriteBox.isChecked(),
 							 vad = self.vadBox.currentText(),
 							 whisper_time = self.timestampBox.currentText(), 
                              no_cut=self.nocutBox.isChecked(),
-                             whisper_model=self.whisperBox.currentText())
-
-        pipeParserInt = pipeParser()
-        num_procs, parsed_all_args = pipeParserInt.parse_args(all_args)
-        my_pipes = [pipe() for _ in range(num_procs)]
-        summary_queue = multiprocessing.Queue()
-        processes = []
-        summary_process = multiprocessing.Process(target=make_summary, 
+                             whisper_model=self.whisperBox.currentText(),
+							 interviewer_analysis=self.interviewer.isChecked())
+		
+		pipeParserInt = pipeParser()
+		num_procs, parsed_all_args = pipeParserInt.parse_args(all_args)
+		my_pipes = [pipe() for _ in range(num_procs)]
+		summary_queue = multiprocessing.Queue()
+		processes = []
+		summary_process = multiprocessing.Process(target=make_summary, 
                                                   args=(summary_queue,))
-        summary_process.start() # Reader process
-        for i in range(num_procs):
-            process = multiprocessing.Process(target=process_func,
+		summary_process.start() # Reader process
+		for i in range(num_procs):
+			process = multiprocessing.Process(target=process_func,
                                               args=(summary_queue, my_pipes[i], 
                                               parsed_all_args[i])) # Writer processes
-            processes.append(process)
-            process.start()
-        for process in processes:
-            process.join()
-        summary_queue.put(None)
-        summary_process.join()
-        print("INFO:\tAll participants complete. You can close the windows now.")
-        self.close()
+			processes.append(process)
+			process.start()
+		for process in processes:
+			process.join()
+		summary_queue.put(None)
+		summary_process.join()
+		print("INFO:\tAll participants complete. You can close the windows now.")
+		self.close()
 
 
 if __name__ == '__main__':
