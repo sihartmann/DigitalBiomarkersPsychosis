@@ -59,10 +59,10 @@ class pipe:
 			raise Exception("You must provide video and/or audio files.")
 		self.participant_name = os.path.basename(self.participant_dir)
 		self.nltk_out = f'{self.participant_dir}\\{self.participant_name}_nltk_results.csv'
-		self.nltk_out_interviewer = f'{self.participant_dir}\\{self.participant_name}_interviewer_nltk_results.csv'
 		self.summary =  f'{self.participant_dir}\\..\\all_summary.csv'
 		if self.interviewer_analysis:
-			self.interviewer_summary = f'{self.participant_dir}\\..\\all_interviewer_summary.csv'
+			self.summary_interviewer = f'{self.participant_dir}\\..\\all_interviewer_summary.csv'
+			self.nltk_out_interviewer = f'{self.participant_dir}\\{self.participant_name}_interviewer_nltk_results.csv'
 		stderrhandler = logging.StreamHandler()
 		filehandler = logging.FileHandler(f"{os.path.dirname(self.participant_dir)}\\DigBio.log")
 		filehandler.setLevel(int(self.loglevel))
@@ -115,7 +115,7 @@ class pipe:
 				feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 			)
 			if self.vad == 'VAD':
-				features = smile.process_file(self.opensmile_audio)
+				features = smile.process_file(self.cleaned_audio)
 			else:
 				features = smile.process_file(self.audio)
 			df = pd.DataFrame(features, columns=smile.feature_names)
@@ -125,7 +125,7 @@ class pipe:
 				feature_set = opensmile.FeatureSet.eGeMAPSv02
 			)
 			if self.vad != 'None':
-				features = smile_summary.process_file(self.opensmile_audio)
+				features = smile_summary.process_file(self.cleaned_audio)
 			else:
 				features = smile_summary.process_file(self.audio)
 			df = pd.DataFrame(features, columns=smile_summary.feature_names)
@@ -133,10 +133,9 @@ class pipe:
 			self.logger.info("\tOpensmile has completed successfully.")
 		
 		if self.interviewer_analysis:
-			opensmile_path = f"{self.participant_dir}\\{self.participant_name}"
-			self.f_interviewer_summary = f"{opensmile_path}_summary_interviewer_opensmile.csv"
+			self.f_summary_interviewer = f"{opensmile_path}_summary_interviewer_opensmile.csv"
 			f_individual = f"{opensmile_path}_interviewer_opensmile.csv"
-			if os.path.isfile(f_individual) and os.path.isfile(self.f_interviewer_summary):
+			if os.path.isfile(f_individual) and os.path.isfile(self.f_summary_interviewer):
 				self.logger.info("\tOutput files already exist. Skipping interviewer OpenSmile...")
 			else:
 				self.logger.info(f"\tStarting opensmile for interviewer of {self.participant_name}.")
@@ -145,7 +144,7 @@ class pipe:
 					feature_level = opensmile.FeatureLevel.LowLevelDescriptors,
 				)
 				if self.vad == 'VAD':
-					features = smile.process_file(self.interviewer_cleaned_audio)
+					features = smile.process_file(self.cleaned_audio_interviewer)
 				else:
 					features = smile.process_file(self.audio_interviewer)
 				df = pd.DataFrame(features, columns=smile.feature_names)
@@ -155,11 +154,11 @@ class pipe:
 					feature_set = opensmile.FeatureSet.eGeMAPSv02
 				)
 				if self.vad != 'None':
-					features = smile_summary.process_file(self.interviewer_cleaned_audio)
+					features = smile_summary.process_file(self.cleaned_audio_interviewer)
 				else:
 					features = smile_summary.process_file(self.audio_interviewer)
 				df = pd.DataFrame(features, columns=smile_summary.feature_names)
-				df.to_csv(self.f_interviewer_summary, index=False)
+				df.to_csv(self.f_summary_interviewer, index=False)
 				self.logger.info("\tOpensmile has completed successfully.")			
 
 	# Transcribe both interviewer and participant audio using specified model.
@@ -175,7 +174,7 @@ class pipe:
 		self.transcript_clean = f"{self.participant_name}_transcript.txt"
 		self.transcript_int_clean = f"{self.participant_name}_interviewer_transcript.txt"
 		if self.vad != 'None':
-			whisper_audio = self.opensmile_audio
+			whisper_audio = self.cleaned_audio
 		else:
 			whisper_audio = self.audio
 		if os.path.isfile(self.transcript):
@@ -190,7 +189,7 @@ class pipe:
 			self.logger.info(f"\twhisper (participant {self.participant_name}) has finished successfully.")
 		if self.audio_interviewer is not None:
 			if self.vad != 'None':
-				whisper_interviewer_audio = self.interviewer_cleaned_audio
+				whisper_interviewer_audio = self.cleaned_audio_interviewer
 			else:
 				whisper_interviewer_audio = self.audio_interviewer
 			if os.path.isfile(self.transcript_int):
@@ -252,13 +251,13 @@ class pipe:
 
 
 	def run_VAD(self):
-		self.opensmile_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
+		self.cleaned_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
 		self.logger.debug(f"\tRunning VAD on participant {self.participant_name}.")
-		self.interviewer_cleaned_audio = self.participant_dir + '\\' + self.participant_name + "_interviewer_cleaned.wav"
+		self.cleaned_audio_interviewer = self.participant_dir + '\\' + self.participant_name + "_interviewer_cleaned.wav"
 		self.part_timestamps, self.audio_convert = self.voice_activity_detection(self.audio)
 		self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
-		self.strip_audio(self.part_timestamps, self.audio_convert, self.opensmile_audio, False)
-		self.strip_audio(self.int_timestamps, self.audio_interviewer_convert, self.interviewer_cleaned_audio, False)
+		self.strip_audio(self.part_timestamps, self.audio_convert, self.cleaned_audio, False)
+		self.strip_audio(self.int_timestamps, self.audio_interviewer_convert, self.cleaned_audio_interviewer, False)
 		self.logger.info(f"\tVAD for participant {self.participant_name} and interviewer has finished successfully.")
 
 	# Audio domain of pipeline: openSMILE, Whisper, semantic analysis.	
@@ -268,11 +267,12 @@ class pipe:
 		self.run_whisper(self.whisper_model)
 		if self.whisper_time != "None" and self.vad != "None":
 			self.run_whisper_timestamped(self.whisper_model)
-		self.run_nltk(self.transcript, f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt', 
+		self.run_nltk(self.transcript, f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt',
 				f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out, True)
-		self.run_nltk(self.transcript_int, f'{self.participant_dir}\\{self.participant_name}_nltk_interviewer_results.txt', 
-				f'{self.participant_dir}\\{self.participant_name}_interviewer_sim_scores.csv',
-				self.nltk_out_interviewer, False)
+		if self.interviewer_analysis:
+			self.run_nltk(self.transcript_int, f'{self.participant_dir}\\{self.participant_name}_nltk_interviewer_results.txt',
+					f'{self.participant_dir}\\{self.participant_name}_interviewer_sim_scores.csv',
+					self.nltk_out_interviewer, False)
 
 	# Video domain of pipeline: OpenFace (including downstream analysis).
 	def run_video(self, openface_out, video):
@@ -343,7 +343,7 @@ class pipe:
 		if int_flag:
 			own_summary = f"{self.participant_dir}\\{self.participant_name}_interviewer_summary.csv"
 			nltk_out = self.nltk_out_interviewer
-			f_summary = self.f_interviewer_summary
+			f_summary = self.f_summary_interviewer
 			openface_out = self.openface_out_interviewer
 		else:
 			own_summary = f"{self.participant_dir}\\{self.participant_name}_summary.csv"
@@ -723,18 +723,17 @@ class pipe:
 		# Crop interviewer when flag is set
 		if self.interviewer_analysis:
 			cropped_video = f'{self.participant_dir}\\{self.participant_name}_interviewer_video.mp4'
-		log_path = f"{self.log_dir}\\{log_file}"
-		if os.path.isfile(cropped_video):
-			self.logger.info("\tInterviewer video has already been cropped. Skipping step and continuing...")
-		else:
-			#command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
-			command = f'ffmpeg -i {self.video} -vf "crop=in_w/2:in_h:0:0"  {cropped_video}>> {log_path} 2>&1'
-			self.logger.debug("\tRunning ffmpeg cropping on interviewer file using {}.".format(command))
-			exit_c, output = subprocess.getstatusoutput(command)
-			if exit_c != 0:
-				self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
-				sys.exit(1)
-		self.interviewer_video = cropped_video
+			if os.path.isfile(cropped_video):
+				self.logger.info("\tInterviewer video has already been cropped. Skipping step and continuing...")
+			else:
+				#command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
+				command = f'ffmpeg -i {self.video} -vf "crop=in_w/2:in_h:0:0"  {cropped_video}>> {log_path} 2>&1'
+				self.logger.debug("\tRunning ffmpeg cropping on interviewer file using {}.".format(command))
+				exit_c, output = subprocess.getstatusoutput(command)
+				if exit_c != 0:
+					self.logger.error(f'\tffmpeg returned exit code {exit_c}. See log file for detailed error message.'.format(exit_c))
+					sys.exit(1)
+			self.interviewer_video = cropped_video
 
 
 	# Run either/both audio or/and video domains, acll summary generation function.
@@ -746,7 +745,6 @@ class pipe:
 		if self.run_mode != "Audio":
 			if not self.no_cut:
 				self.cut_video()
-			
 			openface_out = f'{self.participant_dir}\\{self.participant_name}.csv'
 			self.run_video(openface_out, self.video)
 			self.facial_analysis(openface_out, False)
@@ -760,7 +758,7 @@ class pipe:
 			self.write_own_summary(True)
 		self.logger.info(f"\tPipeline completed for {self.participant_name}.")
 		if self.interviewer_analysis:
-			return [self.summary, self.interviewer_summary, self.header_list, self.content_list, self.header_list_int, self.content_list_int, self.participant_name]
+			return [self.summary, self.summary_interviewer, self.header_list, self.content_list, self.header_list_int, self.content_list_int, self.participant_name]
 		else:
 			return [self.summary, self.header_list, self.content_list, self.participant_name]
 
