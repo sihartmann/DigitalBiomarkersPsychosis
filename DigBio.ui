@@ -270,7 +270,7 @@
    </palette>
   </property>
   <property name="windowTitle">
-   <string>DigBio 1.3</string>
+   <string>DigBio 1.2</string>
   </property>
   <property name="animated">
    <bool>false</bool>
@@ -322,7 +322,7 @@
           </font>
          </property>
          <property name="text">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;DigBio 1.3&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Automatic digital biomarker extraction &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;software from video and audio recordings&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt; text-decoration: underline;&quot;&gt;Inventors&lt;/span&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Dr. Simon Hartmann&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Oliver Williams&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;A/Prof Scott Clark&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt; text-decoration: underline;&quot;&gt;License&lt;/span&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;GNU GENERAL PUBLIC LICENSE 3.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;DigBio 1.2&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Automatic digital biomarker extraction &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;software from video and audio recordings&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt; text-decoration: underline;&quot;&gt;Inventors&lt;/span&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;:&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Dr. Simon Hartmann&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;Oliver Williams&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;A/Prof Scott Clark&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt; text-decoration: underline;&quot;&gt;License&lt;/span&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;: &lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-size:7pt;&quot;&gt;GNU GENERAL PUBLIC LICENSE 3.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="scaledContents">
           <bool>true</bool>

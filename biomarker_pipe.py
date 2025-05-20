@@ -33,7 +33,7 @@ import whisper_timestamped.make_subtitles
 from whisper_timestamped.transcribe import write_csv
 
 
-VERSION = '1.3 with GUI'
+VERSION = '1.2 with GUI'
 
 ## Main processing class.
 class pipe:
@@ -43,14 +43,14 @@ class pipe:
 		self.audio = args[0].replace('/','\\')
 		self.video = args[1].replace('/', '\\')
 		self.audio_interviewer = args[2].replace('/', '\\')
-		self.video_interviewer = ""
-		self.loglevel = args[3]
-		self.run_mode = args[4]
-		self.vad = args[5]
-		self.whisper_time = args[6]
-		self.no_cut = args[7]
-		self.whisper_model = args[8]
-		self.interviewer_analysis = args[9]
+		self.video_interviewer = args[3].replace('/', '\\')
+		self.loglevel = args[4]
+		self.run_mode = args[5]
+		self.vad = args[6]
+		self.whisper_time = args[7]
+		self.no_cut = args[8]
+		self.whisper_model = args[9]
+		self.interviewer_analysis = args[10]
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
@@ -771,6 +771,7 @@ class pipeParser:
 			clear_data(args.interviews)
 		all_args = []
 		video = None
+		int_video = None
 		audio = None
 		int_audio = None
 		for participant_dir in os.listdir(args.interviews):	
@@ -784,13 +785,18 @@ class pipeParser:
 						int_audio = file
 					elif f.find('gvo') != -1 and f.endswith('.mp4'):
 						video = file
+					elif f.find('interviewer') != -1 and f.endswith('.mp4'):
+						int_video = file
 				if args.mode != video and audio == None:
 					raise Exception(f"\t{participant_dir} does not have an audio file. Either remove this folder or provide a video file. See README for information on naming files.")
 				if args.mode != audio and video == None:
 					raise Exception(f"\t{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
 				if args.mode != video and int_audio == None:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
-				all_args.append([audio, video, int_audio, args.verbosity, args.mode, args.vad, args.whisper_time, args.no_cut, args.whisper_model, args.interviewer_analysis])
+				if args.no_cut and int_video == None:
+					raise Exception(f"\t{participant_dir} does not have a interviewer video file. Either deactivate interviewer analysis, activate video cropping if video contains\
+					participant and interviewer or provide a interviewer video file. See README for information on naming files.")
+				all_args.append([audio, video, int_audio, int_video, args.verbosity, args.mode, args.vad, args.whisper_time, args.no_cut, args.whisper_model, args.interviewer_analysis])
 		return len(all_args), all_args
 
 # Function executed by each process, returns summary list, added to shared queue.
@@ -869,7 +875,7 @@ class DigBioWindow(QMainWindow):
 		super(DigBioWindow, self).__init__() # Call the inherited classes __init__ method
 		loadUi('DigBio.ui', self) # Load the .ui file
 		self.show() # Show the GUI
-		self.setWindowTitle('DigBio 1.3')
+		self.setWindowTitle('DigBio 1.2')
 		self.setFixedSize(1100, 550)
 		
 		# Set default values
