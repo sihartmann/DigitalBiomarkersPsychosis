@@ -9,4 +9,4 @@ A summary file is generated for each participant listing all extracted data. For
 
 ## How To Use The Pipeline
 
-See [wiki](https://github.com/sihartmann/DigitalBiomarkersPsychosis.wiki.git)
+See [wiki](https://github.com/sihartmann/DigitalBiomarkersPsychosis/wiki)
