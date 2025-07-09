@@ -793,7 +793,7 @@ class pipeParser:
 					raise Exception(f"\t{participant_dir} does not have a video file. Either remove this folder or provide an audio file. See README for information on naming files.")
 				if args.mode != video and int_audio == None:
 					print(f"{participant_dir} does not have an interviewer audio file. The pipeline will skip all analysis requiring this file.")
-				if args.no_cut and int_video == None:
+				if args.interviewer_analysis and args.no_cut and int_video == None:
 					raise Exception(f"\t{participant_dir} does not have a interviewer video file. Either deactivate interviewer analysis, activate video cropping if video contains\
 					participant and interviewer or provide a interviewer video file. See README for information on naming files.")
 				all_args.append([audio, video, int_audio, int_video, args.verbosity, args.mode, args.vad, args.whisper_time, args.no_cut, args.whisper_model, args.interviewer_analysis])
