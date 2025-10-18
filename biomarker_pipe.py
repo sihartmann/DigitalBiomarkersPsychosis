@@ -43,7 +43,6 @@ class pipe:
 		self.audio = args[0].replace('/','\\')
 		self.video = args[1].replace('/', '\\')
 		self.audio_interviewer = args[2].replace('/', '\\')
-		self.video_interviewer = args[3].replace('/', '\\')
 		self.loglevel = args[4]
 		self.run_mode = args[5]
 		self.vad = args[6]
@@ -51,6 +50,13 @@ class pipe:
 		self.no_cut = args[8]
 		self.whisper_model = args[9]
 		self.interviewer_analysis = args[10]
+		if self.interviewer_analysis:
+			if args[3] is not None:
+				self.video_interviewer = args[3].replace('/', '\\')
+			else:
+				self.video_interviewer = None
+		else:
+			self.video_interviewer = None
 		if self.audio is not None:
 			self.participant_dir = os.path.dirname(self.audio)
 		elif self.video is not None:
@@ -124,7 +130,7 @@ class pipe:
 			smile_summary = opensmile.Smile(
 				feature_set = opensmile.FeatureSet.eGeMAPSv02
 			)
-			if self.vad != 'None':
+			if self.vad == 'VAD':
 				features = smile_summary.process_file(self.cleaned_audio)
 			else:
 				features = smile_summary.process_file(self.audio)
@@ -153,7 +159,7 @@ class pipe:
 				smile_summary = opensmile.Smile(
 					feature_set = opensmile.FeatureSet.eGeMAPSv02
 				)
-				if self.vad != 'None':
+				if self.vad == 'VAD':
 					features = smile_summary.process_file(self.cleaned_audio_interviewer)
 				else:
 					features = smile_summary.process_file(self.audio_interviewer)
@@ -173,7 +179,7 @@ class pipe:
 		self.transcript_int = f"{self.participant_dir}\\{self.participant_name}_interviewer_transcript.txt"
 		self.transcript_clean = f"{self.participant_name}_transcript.txt"
 		self.transcript_int_clean = f"{self.participant_name}_interviewer_transcript.txt"
-		if self.vad != 'None':
+		if self.vad == 'VAD':
 			whisper_audio = self.cleaned_audio
 		else:
 			whisper_audio = self.audio
@@ -181,14 +187,14 @@ class pipe:
 			self.logger.info("\tTranscript for this participant already exists. Skipping transcription...")
 		else:
 			linux_audio = whisper_audio.replace('\\','/')
-			command = f'{self.whisper_path} {linux_audio} -f txt --model {model} --language English --hallucination_silence_threshold 1 --word_timestamps True --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
+			command = f'{self.whisper_path} {linux_audio} -f txt --model {model} --language English --hallucination_silence_threshold 1 --word_timestamps True --patience 2.0 --initial_prompt "Hello." --output_dir {self.participant_dir}> {self.log_dir}\\{log_file} 2>&1'
 			self.logger.debug("\tRunning whisper on participant file using {}.".format(command))
 			subprocess.check_output(command, shell=True)
 			command = f'ren {whisper_audio[:-4]}.txt {self.transcript_clean}'
 			subprocess.check_output(command, shell=True)
 			self.logger.info(f"\twhisper (participant {self.participant_name}) has finished successfully.")
 		if self.audio_interviewer is not None:
-			if self.vad != 'None':
+			if self.vad == 'VAD':
 				whisper_interviewer_audio = self.cleaned_audio_interviewer
 			else:
 				whisper_interviewer_audio = self.audio_interviewer
@@ -252,8 +258,8 @@ class pipe:
 
 	def run_VAD(self):
 		self.cleaned_audio = self.participant_dir + '\\' + self.participant_name + "_cleaned.wav"
-		self.logger.debug(f"\tRunning VAD on participant {self.participant_name}.")
 		self.cleaned_audio_interviewer = self.participant_dir + '\\' + self.participant_name + "_interviewer_cleaned.wav"
+		self.logger.debug(f"\tRunning VAD on participant {self.participant_name}.")
 		self.part_timestamps, self.audio_convert = self.voice_activity_detection(self.audio)
 		self.int_timestamps, self.audio_interviewer_convert  = self.voice_activity_detection(self.audio_interviewer)
 		self.strip_audio(self.part_timestamps, self.audio_convert, self.cleaned_audio, False)
@@ -265,7 +271,7 @@ class pipe:
 		self.log_dir = self.participant_dir + r'\logs'
 		self.run_opensmile()
 		self.run_whisper(self.whisper_model)
-		if self.whisper_time != "None" and self.vad != "None":
+		if self.whisper_time != "None":
 			self.run_whisper_timestamped(self.whisper_model)
 		self.run_nltk(self.transcript, f'{self.participant_dir}\\{self.participant_name}_nltk_results.txt',
 				f'{self.participant_dir}\\{self.participant_name}_sim_scores.csv',self.nltk_out, True)
@@ -303,7 +309,7 @@ class pipe:
 			reader = csv.reader(file)
 			rows = list(reader)
 			self.video_len = float(rows[-1][2].strip())
-		if self.audio is not None and self.vad != 'None':
+		if self.audio is not None:
 			if int_flag:
 				edited_rows = self.check_silence_periods(self.int_timestamps, self.part_timestamps, rows)
 			else:
@@ -524,8 +530,8 @@ class pipe:
 			word_ratio = "N/A"
 				
 		neighbour_scores = []
-		for i in range(num_sent-1):
-			for j in range(num_sent -1):
+		for i in range(similarity_matrix.shape[0]):
+			for j in range(similarity_matrix.shape[1]):
 				if abs(i-j) == 1:
 					neighbour_scores.append(similarity_matrix[i][j])
 		avg_sim_score = 0
@@ -664,10 +670,17 @@ class pipe:
 			if self.sampling_rate not in [8000, 16000, 32000, 48000]:
 				self.logger.info("\tSample rate not supported by voice activity detection. " \
 				"Automatic resampling to 16kHz.")
-				origin_num_samples, _  = data.shape
+				try:
+					origin_num_samples, _  = data.shape
+				except:
+					origin_num_samples  = data.shape
+					origin_num_samples = origin_num_samples[0]
 				new_samps = int(origin_num_samples * 16000/self.sampling_rate)
 				# resampling
-				target_audio_scipy = resample(data[:,0], new_samps).astype(int)
+				try:
+					target_audio_scipy = resample(data[:,0], new_samps).astype(int)
+				except:
+					target_audio_scipy = resample(data, new_samps).astype(int)
 				target_audio_scipy = np.array(target_audio_scipy, np.int16)
 				write_wav(convert_path, 16000, target_audio_scipy)
 				self.sampling_rate = 16000
@@ -692,7 +705,8 @@ class pipe:
 			silero_vad.save_audio(save_path, silero_vad.collect_chunks(timestamp_samples, wav), sampling_rate=self.sampling_rate)
 
 	def seconds_to_samples(self, timestamps: list[dict], sampling_rate: int) -> list[dict]:
-		"""Convert coordinates expressed in seconds to sample coordinates.
+		"""
+		Convert coordinates expressed in seconds to sample coordinates.
 		"""
 		return [{
 			'start': round(stamp['start']) * sampling_rate,
@@ -704,6 +718,7 @@ class pipe:
 		self.log_dir = self.participant_dir + r'\logs'
 		log_file = self.participant_name + "_ffmpeg.log"
 		cropped_video = f'{self.participant_dir}\\{self.participant_name}_video.mp4'
+		full_video = self.video
 		try:
 			os.mkdir(self.log_dir)
 		except OSError:
@@ -713,7 +728,7 @@ class pipe:
 			self.logger.info("\tVideo has already been cropped. Skipping step and continuing...")
 		else:
 			#command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
-			command = f'ffmpeg -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
+			command = f'ffmpeg -i {full_video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
 			self.logger.debug("\tRunning ffmpeg cropping on participant file using {}.".format(command))
 			exit_c, output = subprocess.getstatusoutput(command)
 			if exit_c != 0:
@@ -727,7 +742,7 @@ class pipe:
 				self.logger.info("\tInterviewer video has already been cropped. Skipping step and continuing...")
 			else:
 				#command = f'{self.ffmpeg_path} -i {self.video} -vf "crop=in_w/2:in_h:in_w/2:0"  {cropped_video}>> {log_path} 2>&1'
-				command = f'ffmpeg -i {self.video} -vf "crop=in_w/2:in_h:0:0"  {cropped_video}>> {log_path} 2>&1'
+				command = f'ffmpeg -i {full_video} -vf "crop=in_w/2:in_h:0:0"  {cropped_video}>> {log_path} 2>&1'
 				self.logger.debug("\tRunning ffmpeg cropping on interviewer file using {}.".format(command))
 				exit_c, output = subprocess.getstatusoutput(command)
 				if exit_c != 0:
@@ -738,8 +753,7 @@ class pipe:
 
 	# Run either/both audio or/and video domains, acll summary generation function.
 	def run_pipe(self):
-		if self.vad != 'None':
-			self.run_VAD()
+		self.run_VAD()
 		if self.run_mode != "Video":
 			self.run_audio()
 		if self.run_mode != "Audio":

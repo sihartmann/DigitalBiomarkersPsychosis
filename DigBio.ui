@@ -837,13 +837,8 @@ all non-video and audio files)</string>
          <item row="1" column="1">
           <widget class="QComboBox" name="vadBox">
            <property name="currentText">
-            <string>Both</string>
+            <string>None</string>
            </property>
-           <item>
-            <property name="text">
-             <string>Both</string>
-            </property>
-           </item>
            <item>
             <property name="text">
              <string>VAD</string>
